@@ -92,12 +92,12 @@ export function Sidebar() {
               More meetings, storage, and advanced features.
             </p>
           </div>
-          <button
-            onClick={() => window.open("#upgrade", "_self")}
+          <Link
+            href="/billing"
             className="text-sm font-bold text-[#0E72ED] transition-colors hover:text-[#0966d9] outline-none cursor-pointer text-left"
           >
             Upgrade now →
-          </button>
+          </Link>
         </div>
       </div>
 

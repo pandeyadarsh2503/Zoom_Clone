@@ -1,5 +1,7 @@
 export interface User {
   id: string;
+  email: string | null;
+  plan: string;
   display_name: string;
   avatar_url: string | null;
   created_at: string; // ISO-8601

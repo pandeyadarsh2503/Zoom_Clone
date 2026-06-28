@@ -3,30 +3,30 @@
 import { useEffect } from "react";
 import { usersApi } from "@/lib/api/users";
 import { useUserStore } from "@/store/userStore";
+import { getToken, clearToken } from "@/lib/auth";
 
 /**
- * Client-side provider that bootstraps application state on mount.
- *
- * Responsibilities:
- * - Fetches the default user from the API and hydrates the Zustand userStore.
- *
- * Kept as a thin wrapper so future providers (theme, toast, etc.)
- * can be composed here without touching any page or layout file.
+ * Bootstraps auth state on mount: if a bearer token is present, fetch the
+ * profile (GET /users/me) and hydrate the store; if it's missing or rejected,
+ * mark the user signed-out so route guards can redirect to /login.
  */
 export function Providers({ children }: { children: React.ReactNode }) {
-  const setUser = useUserStore((state) => state.setUser);
+  const setUser = useUserStore((s) => s.setUser);
+  const clearUser = useUserStore((s) => s.clearUser);
 
   useEffect(() => {
+    if (!getToken()) {
+      clearUser();
+      return;
+    }
     usersApi
       .getMe()
       .then(setUser)
-      .catch((err) => {
-        // In development, log the error so it's visible in the console.
-        // The app continues to function; routes that need the user show
-        // a graceful empty state rather than crashing.
-        console.error("[Providers] Failed to load user profile:", err);
+      .catch(() => {
+        clearToken();
+        clearUser();
       });
-  }, [setUser]);
+  }, [setUser, clearUser]);
 
   return <>{children}</>;
 }

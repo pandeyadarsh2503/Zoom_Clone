@@ -7,6 +7,8 @@
  * `close()` so React effects leave nothing running.
  */
 
+import { getToken } from "@/lib/auth";
+
 export type RTHandler = (data: any) => void;
 export type RTStatus = "connecting" | "connected" | "reconnecting" | "closed";
 
@@ -14,7 +16,8 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 function wsUrl(code: string, name: string, pid: string): string {
   const base = API_BASE.replace(/^http/i, "ws").replace(/\/+$/, "");
-  const q = new URLSearchParams({ name, pid });
+  // Token goes in the query — the browser WebSocket API can't set headers.
+  const q = new URLSearchParams({ name, pid, token: getToken() ?? "" });
   return `${base}/api/v1/ws/meetings/${encodeURIComponent(code)}?${q.toString()}`;
 }
 

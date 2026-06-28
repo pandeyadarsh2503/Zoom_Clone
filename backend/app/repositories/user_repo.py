@@ -20,11 +20,9 @@ class UserRepository(BaseRepository[User]):
         super().__init__(User, db)
 
     def get_default(self) -> Optional[User]:
-        """
-        Return the single seeded user row, or None if the DB is empty.
-
-        In this phase there is always exactly one User row, but returning
-        Optional[User] keeps the signature honest and lets callers raise
-        an appropriate exception when the seed hasn't run.
-        """
+        """Return the single seeded user row, or None if the DB is empty."""
         return self.db.query(User).first()
+
+    def get_by_email(self, email: str) -> Optional[User]:
+        """Look up a user by (lowercased) email. Backed by the unique index."""
+        return self.db.query(User).filter(User.email == email.strip().lower()).first()

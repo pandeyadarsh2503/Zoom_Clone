@@ -38,8 +38,12 @@ export function useMeetingSocket(code: string, name: string, enabled = true): Us
 
   useEffect(() => {
     if (!enabled || !code) return;
+    // Recreate if a prior cleanup (e.g. strict-mode double-invoke) nulled it,
+    // so the socket always reconnects rather than getting stuck "connecting".
+    if (!sockRef.current) {
+      sockRef.current = new MeetingSocket(code, nameRef.current, pidRef.current, setStatus);
+    }
     const s = sockRef.current;
-    if (!s) return;
     s.connect();
     return () => {
       s.close();

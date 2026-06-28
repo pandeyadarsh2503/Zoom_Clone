@@ -1,5 +1,6 @@
 import { Navbar } from "@/components/layout/Navbar";
 import { Sidebar, BottomNav } from "@/components/layout/Sidebar";
+import { AuthGuard } from "@/components/AuthGuard";
 
 export default function AppLayout({
   children,
@@ -7,6 +8,7 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   return (
+    <AuthGuard>
     <div className="flex h-screen overflow-hidden bg-[#F7F8FA]">
       {/* Keyboard skip link — first focusable element on the page. */}
       <a
@@ -30,5 +32,6 @@ export default function AppLayout({
       {/* Mobile bottom navigation */}
       <BottomNav />
     </div>
+    </AuthGuard>
   );
 }

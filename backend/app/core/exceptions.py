@@ -37,6 +37,13 @@ class ConflictException(AppException):
         super().__init__(code="CONFLICT", message=message, status_code=409)
 
 
+class UnauthorizedException(AppException):
+    """Raised when authentication is missing or invalid."""
+
+    def __init__(self, message: str = "Authentication required.") -> None:
+        super().__init__(code="UNAUTHENTICATED", message=message, status_code=401)
+
+
 class UnprocessableException(AppException):
     """Raised when input is syntactically valid but semantically wrong."""
 

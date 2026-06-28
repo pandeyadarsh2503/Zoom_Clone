@@ -36,5 +36,30 @@ class UserOut(UserBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
+    email: Optional[str] = None
+    plan: str = "free"
     created_at: datetime
     updated_at: datetime
+
+
+class RegisterRequest(BaseModel):
+    """POST /auth/register body."""
+
+    email: str = Field(..., min_length=3, max_length=255)
+    password: str = Field(..., min_length=6, max_length=128)
+    display_name: str = Field(..., min_length=1, max_length=100)
+
+
+class LoginRequest(BaseModel):
+    """POST /auth/login body."""
+
+    email: str = Field(..., min_length=3, max_length=255)
+    password: str = Field(..., min_length=1, max_length=128)
+
+
+class AuthResponse(BaseModel):
+    """Returned by register + login — a bearer token and the user profile."""
+
+    access_token: str
+    token_type: str = "bearer"
+    user: UserOut

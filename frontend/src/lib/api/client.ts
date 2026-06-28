@@ -13,6 +13,8 @@
  *   object — nothing else changes.
  */
 
+import { clearToken, getToken } from "@/lib/auth";
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -35,15 +37,25 @@ interface ErrorEnvelope {
 }
 
 function buildHeaders(): HeadersInit {
-  return {
-    "Content-Type": "application/json",
-  };
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
 }
 
 async function handleResponse<T>(response: Response): Promise<T> {
   if (response.ok) {
     if (response.status === 204) return undefined as T;
     return response.json() as Promise<T>;
+  }
+
+  // Session expired / not authenticated → drop the token and bounce to login.
+  if (response.status === 401 && typeof window !== "undefined") {
+    clearToken();
+    const path = window.location.pathname;
+    if (path !== "/login" && path !== "/signup") {
+      window.location.assign("/login");
+    }
   }
 
   // Attempt to parse the backend's error envelope.

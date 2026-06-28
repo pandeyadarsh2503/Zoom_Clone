@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Settings, Bell, Search, HelpCircle, User as UserIcon, LogOut } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
@@ -10,8 +11,10 @@ import { usersApi } from "@/lib/api/users";
 import { getInitials } from "@/lib/utils";
 
 export function Navbar() {
+  const router = useRouter();
   const user = useUserStore((state) => state.user);
   const setUser = useUserStore((state) => state.setUser);
+  const logout = useUserStore((state) => state.logout);
 
   // States
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -137,7 +140,7 @@ export function Navbar() {
                 <div className="px-3 py-2 border-b border-gray-100 mb-1">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Profile</p>
                   <p className="text-sm font-semibold text-gray-800 truncate mt-0.5">{user.display_name}</p>
-                  <p className="text-xs text-gray-500 truncate">default_user@zoom.clone</p>
+                  <p className="text-xs text-gray-500 truncate">{user.email ?? "—"}</p>
                 </div>
 
                 <button
@@ -162,7 +165,7 @@ export function Navbar() {
                 <div className="h-[1px] bg-gray-100 my-1" />
 
                 <button
-                  onClick={() => setIsProfileDropdownOpen(false)}
+                  onClick={() => { setIsProfileDropdownOpen(false); logout(); router.replace("/login"); }}
                   className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-red-500 hover:text-red-700 hover:bg-red-50/50 transition-colors outline-none cursor-pointer"
                 >
                   <LogOut className="h-4 w-4" />
