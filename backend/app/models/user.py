@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, String
+from sqlalchemy import DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -51,9 +51,9 @@ class User(Base):
         doc="Human-readable name shown in the UI.",
     )
     avatar_url: Mapped[str | None] = mapped_column(
-        String(500),
+        Text,
         nullable=True,
-        doc="Optional URL to a profile picture.",
+        doc="Profile picture — a remote URL or an uploaded image as a data-URL.",
     )
     plan: Mapped[str] = mapped_column(
         String(20),

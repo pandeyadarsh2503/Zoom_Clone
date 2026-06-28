@@ -6,12 +6,13 @@ import Link from "next/link";
 import {
   Settings, Bell, HelpCircle, User as UserIcon, LogOut,
   X, Mic, Video, Volume2, Loader2, Sparkles, Mail, AlertCircle, ChevronRight,
-  Calendar, MessageSquare, UserPlus, CheckCheck, BellOff,
+  Calendar, MessageSquare, UserPlus, CheckCheck, BellOff, Camera, Trash2,
 } from "lucide-react";
 import { useUserStore } from "@/store/userStore";
 import { usersApi } from "@/lib/api/users";
 import { getInitials, cn } from "@/lib/utils";
 import { getPrefs, savePrefs, type Prefs } from "@/lib/prefs";
+import { fileToAvatarDataUrl } from "@/lib/image";
 import { SearchCommand } from "@/components/layout/SearchCommand";
 
 // ── Toggle switch ────────────────────────────────────────────────────────────
@@ -60,6 +61,27 @@ export function Navbar() {
   const [avatarUrl, setAvatarUrl] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const onPickPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      setSaveError("That image is too large (max 8 MB).");
+      return;
+    }
+    setPhotoBusy(true);
+    setSaveError(null);
+    try {
+      setAvatarUrl(await fileToAvatarDataUrl(file));
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Couldn’t process that image.");
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
 
   // Preferences (persisted to localStorage)
   const [prefs, setPrefs] = useState<Prefs>(getPrefs);
@@ -111,7 +133,7 @@ export function Navbar() {
     try {
       const updated = await usersApi.updateMe({
         display_name: displayName.trim(),
-        avatar_url: avatarUrl.trim() || undefined,
+        avatar_url: avatarUrl.trim() ? avatarUrl.trim() : null, // null clears the photo
       });
       setUser(updated);
       setIsEditProfileOpen(false);
@@ -303,20 +325,38 @@ export function Navbar() {
             </div>
 
             <form onSubmit={saveProfile} className="px-6 py-5">
-              {/* Avatar preview */}
+              {/* Avatar + change photo */}
               <div className="mb-5 flex items-center gap-4">
-                <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-[#7B46F2] to-[#5B7CFA] text-xl font-bold text-white">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="group relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-[#7B46F2] to-[#5B7CFA] text-2xl font-bold text-white outline-none focus-visible:ring-4 focus-visible:ring-[#0E72ED]/20 cursor-pointer"
+                  aria-label="Change profile photo"
+                >
                   {avatarUrl.trim() ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={avatarUrl} alt="" className="h-full w-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                    <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
                   ) : (
                     getInitials(displayName || user.display_name)
                   )}
-                </span>
+                  <span className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100">
+                    {photoBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
+                  </span>
+                </button>
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-gray-800">{displayName || user.display_name}</p>
-                  <p className="text-xs text-gray-400">This is how you appear across Zoom.</p>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <button type="button" onClick={() => fileInputRef.current?.click()} disabled={photoBusy} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-gray-200 px-3 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50 cursor-pointer">
+                      {photoBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />} Change photo
+                    </button>
+                    {avatarUrl.trim() && (
+                      <button type="button" onClick={() => setAvatarUrl("")} className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold text-red-500 transition hover:bg-red-50 cursor-pointer">
+                        <Trash2 className="h-3.5 w-3.5" /> Remove
+                      </button>
+                    )}
+                  </div>
                 </div>
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={onPickPhoto} className="hidden" />
               </div>
 
               <div className="space-y-4">
@@ -325,8 +365,13 @@ export function Navbar() {
                   <input autoFocus value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="e.g. Default User" className={fieldCls} required />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-gray-500">Avatar URL <span className="font-normal text-gray-400">(optional)</span></label>
-                  <input value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} placeholder="https://…/avatar.jpg" className={fieldCls} />
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-gray-500">Or paste an image URL <span className="font-normal text-gray-400">(optional)</span></label>
+                  <input
+                    value={avatarUrl.startsWith("data:") ? "" : avatarUrl}
+                    onChange={(e) => setAvatarUrl(e.target.value)}
+                    placeholder={avatarUrl.startsWith("data:") ? "Using your uploaded photo" : "https://…/avatar.jpg"}
+                    className={fieldCls}
+                  />
                 </div>
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-gray-500">Email</label>

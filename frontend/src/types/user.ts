@@ -10,5 +10,5 @@ export interface User {
 
 export interface UserUpdate {
   display_name?: string;
-  avatar_url?: string;
+  avatar_url?: string | null; // null explicitly clears the photo
 }

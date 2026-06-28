@@ -6,11 +6,16 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 
+# Generous cap: avatar may be a remote URL *or* an uploaded image stored as a
+# downscaled JPEG data-URL (~tens of KB), so allow well beyond a plain URL.
+_AVATAR_MAX = 3_000_000
+
+
 class UserBase(BaseModel):
     """Fields shared between request and response schemas."""
 
     display_name: str = Field(..., min_length=1, max_length=100)
-    avatar_url: Optional[str] = Field(default=None, max_length=500)
+    avatar_url: Optional[str] = Field(default=None, max_length=_AVATAR_MAX)
 
 
 class UserUpdate(BaseModel):
@@ -22,7 +27,7 @@ class UserUpdate(BaseModel):
     """
 
     display_name: Optional[str] = Field(default=None, min_length=1, max_length=100)
-    avatar_url: Optional[str] = Field(default=None, max_length=500)
+    avatar_url: Optional[str] = Field(default=None, max_length=_AVATAR_MAX)
 
 
 class UserOut(UserBase):

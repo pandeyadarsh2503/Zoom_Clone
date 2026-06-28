@@ -27,9 +27,12 @@ def get_me(current_user: CurrentUser) -> User:
     description="Partially updates display_name and/or avatar_url. Absent fields are left unchanged.",
 )
 def update_me(payload: UserUpdate, db: DbSession, current_user: CurrentUser) -> User:
-    if payload.display_name is not None:
+    # Only touch fields the client actually sent. avatar_url may be sent as
+    # null to *clear* the photo, so distinguish "absent" from "explicit null".
+    sent = payload.model_fields_set
+    if "display_name" in sent and payload.display_name is not None:
         current_user.display_name = payload.display_name
-    if payload.avatar_url is not None:
+    if "avatar_url" in sent:
         current_user.avatar_url = payload.avatar_url
 
     repo = UserRepository(db)
