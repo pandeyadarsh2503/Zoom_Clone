@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  Settings, Bell, Search, HelpCircle, User as UserIcon, LogOut,
+  Settings, Bell, HelpCircle, User as UserIcon, LogOut,
   X, Mic, Video, Volume2, Loader2, Sparkles, Mail, AlertCircle, ChevronRight,
   Calendar, MessageSquare, UserPlus, CheckCheck, BellOff,
 } from "lucide-react";
@@ -12,6 +12,7 @@ import { useUserStore } from "@/store/userStore";
 import { usersApi } from "@/lib/api/users";
 import { getInitials, cn } from "@/lib/utils";
 import { getPrefs, savePrefs, type Prefs } from "@/lib/prefs";
+import { SearchCommand } from "@/components/layout/SearchCommand";
 
 // ── Toggle switch ────────────────────────────────────────────────────────────
 function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
@@ -139,20 +140,8 @@ export function Navbar() {
   return (
     <>
     <header className="flex h-[72px] shrink-0 items-center justify-between border-b border-gray-100 bg-white/95 px-6 backdrop-blur z-30">
-      {/* Search box */}
-      <div className="relative w-[300px] lg:w-[380px] hidden sm:block group">
-        <span className="absolute inset-y-0 left-3.5 flex items-center text-gray-400 group-focus-within:text-[#0E72ED] transition-colors">
-          <Search className="h-[18px] w-[18px]" />
-        </span>
-        <input
-          type="text"
-          placeholder="Search meetings, contacts…"
-          className="w-full rounded-xl bg-[#f4f5f9] border border-transparent pl-11 pr-16 h-10 text-[13px] text-gray-700 placeholder:text-gray-400 focus:outline-none focus:bg-white focus:border-[#0E72ED]/30 focus:ring-4 focus:ring-[#0E72ED]/10 transition-all font-medium"
-        />
-        <span className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-0.5 text-[10px] font-bold text-gray-400 bg-white border border-gray-200 rounded-md px-1.5 py-0.5 tracking-wide pointer-events-none select-none shadow-[0_1px_1px_rgba(0,0,0,0.03)]">
-          ⌘K
-        </span>
-      </div>
+      {/* Search */}
+      <SearchCommand />
       <div className="sm:hidden" />
 
       {/* Right control buttons */}
