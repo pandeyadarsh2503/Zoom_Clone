@@ -27,6 +27,8 @@ interface RoomState {
   setLocalStream: (stream: MediaStream | null) => void;
   toggleMute: () => void;
   toggleVideo: () => void;
+  setMuted: (muted: boolean) => void;
+  setVideoOff: (off: boolean) => void;
   setIsSharingScreen: (sharing: boolean) => void;
 
   // ── Chat actions ────────────────────────────────────────────
@@ -84,6 +86,8 @@ export const useRoomStore = create<RoomState>()((set) => ({
   setLocalStream: (localStream) => set({ localStream }),
   toggleMute: () => set((s) => ({ isMuted: !s.isMuted })),
   toggleVideo: () => set((s) => ({ isVideoOff: !s.isVideoOff })),
+  setMuted: (isMuted) => set({ isMuted }),
+  setVideoOff: (isVideoOff) => set({ isVideoOff }),
   setIsSharingScreen: (isSharingScreen) => set({ isSharingScreen }),
 
   addMessage: (message) =>

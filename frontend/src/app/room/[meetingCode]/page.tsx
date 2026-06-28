@@ -50,6 +50,7 @@ import { useUserStore } from "@/store/userStore";
 import { useRoomStore } from "@/store/roomStore";
 import { useMeetingSocket } from "@/hooks/useMeetingSocket";
 import { cn, getInitials } from "@/lib/utils";
+import { getPrefs, playChime } from "@/lib/prefs";
 
 // Deterministic avatar accent for a real (remote) participant.
 const REMOTE_ACCENTS = [
@@ -548,7 +549,15 @@ export default function RoomPage() {
   const meetingCode = params.meetingCode;
 
   const user = useUserStore((s) => s.user);
-  const { isMuted, isVideoOff, isSharingScreen, toggleMute, toggleVideo, setIsSharingScreen, reset } = useRoomStore();
+  const { isMuted, isVideoOff, isSharingScreen, toggleMute, toggleVideo, setMuted, setVideoOff, setIsSharingScreen, reset } = useRoomStore();
+
+  // Apply join preferences once on entry (Preferences → "When I join a meeting").
+  useEffect(() => {
+    const p = getPrefs();
+    setMuted(p.muteOnJoin);
+    setVideoOff(p.videoOffOnJoin);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Host is the real first-joiner reported by the backend (optimistic true while
   // alone / connecting). Permissions mirror the backend room state.
@@ -629,7 +638,9 @@ export default function RoomPage() {
         setRemote((r) => r.map((x) => (x.id === d.participant_id ? { ...x, name: d.name } : x)));
       }),
       rt.on("chat", (d: { sender_id: string; name: string; text: string }) => {
-        setMessages((m) => [...m, { id: ++chatId.current, name: d.name, text: d.text, mine: d.sender_id === rt.pid, accent: YOU_ACCENT }]);
+        const mine = d.sender_id === rt.pid;
+        if (!mine && getPrefs().chatSound) playChime();
+        setMessages((m) => [...m, { id: ++chatId.current, name: d.name, text: d.text, mine, accent: YOU_ACCENT }]);
       }),
       rt.on("media-state", (d: { participant_id: string; kind: string; enabled: boolean }) => {
         setRemote((r) => r.map((x) => (x.id === d.participant_id ? {
