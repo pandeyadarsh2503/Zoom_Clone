@@ -1003,15 +1003,23 @@ export default function RoomPage() {
                   {isHost && waiting.length > 0 && (
                     <div className="border-b border-white/10 p-3">
                       <div className="mb-2 flex items-center justify-between">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-amber-300/70">Waiting room ({waiting.length})</p>
-                        <button onClick={admitAll} className="text-xs font-semibold text-[#2D8CFF] hover:underline cursor-pointer">Admit all</button>
+                        <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-300/70">
+                          Waiting room ({waiting.length})
+                          {locked && <span className="inline-flex items-center gap-1 rounded bg-amber-400/15 px-1.5 py-0.5 text-amber-300"><Lock className="h-2.5 w-2.5" /> Locked</span>}
+                        </p>
+                        <button onClick={admitAll} disabled={locked} className={cn("text-xs font-semibold transition", locked ? "cursor-not-allowed text-white/25" : "text-[#2D8CFF] hover:underline cursor-pointer")}>Admit all</button>
                       </div>
+                      {locked && (
+                        <p className="mb-2 flex items-center gap-1.5 rounded-lg bg-white/5 px-2.5 py-1.5 text-[11px] font-medium text-white/50">
+                          <Lock className="h-3 w-3 shrink-0" /> Meeting is locked — unlock to admit participants.
+                        </p>
+                      )}
                       <div className="flex flex-col gap-1">
                         {waiting.map((w) => (
                           <div key={w.id} className="flex items-center gap-3 rounded-xl px-2 py-1.5">
                             <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-xs font-bold text-white", w.accent)}>{getInitials(w.name)}</span>
                             <span className="min-w-0 flex-1 truncate text-sm font-medium text-white/90">{w.name}</span>
-                            <button onClick={() => admit(w.id)} className="rounded-lg bg-[#0E72ED] px-3 py-1 text-xs font-semibold text-white transition hover:bg-[#0966d9] cursor-pointer">Admit</button>
+                            <button onClick={() => admit(w.id)} disabled={locked} className={cn("rounded-lg px-3 py-1 text-xs font-semibold transition", locked ? "cursor-not-allowed bg-white/10 text-white/30" : "bg-[#0E72ED] text-white hover:bg-[#0966d9] cursor-pointer")}>Admit</button>
                           </div>
                         ))}
                       </div>
