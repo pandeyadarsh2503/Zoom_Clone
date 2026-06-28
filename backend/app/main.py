@@ -45,6 +45,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         settings.ENVIRONMENT,
     )
 
+    # Guard against shipping the insecure development secret to production.
+    if settings.ENVIRONMENT == "production" and settings.SECRET_KEY.startswith("dev-secret"):
+        logger.warning(
+            "SECRET_KEY is the insecure default — set a strong SECRET_KEY "
+            "environment variable in production (auth tokens are signed with it)."
+        )
+
     Base.metadata.create_all(bind=engine)
     logger.info("Database schema verified / created.")
 
