@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { cn, getInitials } from "@/lib/utils";
-import { useUserStore } from "@/store/userStore";
+import { cn } from "@/lib/utils";
 import { Home, Video, Calendar, Users, Settings, Sparkles } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -24,10 +23,6 @@ function ZoomLogo() {
 
 export function Sidebar() {
   const pathname = usePathname();
-  const user = useUserStore((state) => state.user);
-
-  const displayName = user?.display_name ?? "Default User";
-  const initials = user ? getInitials(user.display_name) : "DU";
 
   return (
     <aside className="hidden h-full w-[72px] shrink-0 flex-col border-r border-gray-200/80 bg-white transition-[width] duration-200 md:flex lg:w-[240px]">
@@ -101,27 +96,8 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* User profile (anchored at bottom) */}
-      <div className="border-t border-gray-100 p-3">
-        <button
-          className="flex w-full items-center gap-3 rounded-xl p-2 outline-none transition-colors hover:bg-gray-100/70 cursor-pointer justify-center lg:justify-start"
-          aria-label="Account"
-        >
-          <span className="relative shrink-0">
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#7B46F2] to-[#5B7CFA] text-sm font-bold text-white shadow-sm">
-              {initials}
-            </span>
-            <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-[#22C55E] ring-2 ring-white" />
-          </span>
-          <span className="hidden min-w-0 flex-1 text-left lg:block">
-            <span className="block truncate text-sm font-semibold leading-tight text-gray-800">
-              {displayName}
-            </span>
-            <span className="block truncate text-sm leading-tight text-gray-400">Free plan</span>
-          </span>
-          <Settings className="hidden h-4 w-4 shrink-0 text-gray-400 lg:block" />
-        </button>
-      </div>
+      {/* Bottom breathing room (account lives in the top-right navbar menu) */}
+      <div className="h-4" />
     </aside>
   );
 }

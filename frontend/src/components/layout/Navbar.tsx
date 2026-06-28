@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   Settings, Bell, Search, HelpCircle, User as UserIcon, LogOut,
   X, Mic, Video, Volume2, Loader2, Sparkles, Mail, AlertCircle, ChevronRight,
+  Calendar, MessageSquare, UserPlus, CheckCheck, BellOff,
 } from "lucide-react";
 import { useUserStore } from "@/store/userStore";
 import { usersApi } from "@/lib/api/users";
@@ -40,6 +41,19 @@ export function Navbar() {
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [isPrefsOpen, setIsPrefsOpen] = useState(false);
 
+  // Notifications (sample feed — no backend yet, but fully interactive)
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+  const [notifs, setNotifs] = useState<{ id: number; type: "meeting" | "message" | "join"; title: string; detail: string; time: string; read: boolean }[]>([
+    { id: 1, type: "meeting", title: "Q3 Product Planning", detail: "Starts in 15 minutes", time: "15m", read: false },
+    { id: 2, type: "message", title: "Sarah Chen", detail: "Sent you a message in Weekly Standup", time: "2h", read: false },
+    { id: 3, type: "join", title: "Marcus Lee", detail: "Accepted your meeting invite", time: "5h", read: false },
+    { id: 4, type: "meeting", title: "Architecture Review", detail: "Recording is ready to view", time: "1d", read: true },
+  ]);
+  const unreadCount = notifs.filter((n) => !n.read).length;
+  const markAllRead = () => setNotifs((ns) => ns.map((n) => ({ ...n, read: true })));
+  const markRead = (id: number) => setNotifs((ns) => ns.map((n) => (n.id === id ? { ...n, read: true } : n)));
+
   // Edit-profile form
   const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
@@ -53,9 +67,9 @@ export function Navbar() {
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsProfileDropdownOpen(false);
-      }
+      const t = event.target as Node;
+      if (dropdownRef.current && !dropdownRef.current.contains(t)) setIsProfileDropdownOpen(false);
+      if (notifRef.current && !notifRef.current.contains(t)) setIsNotifOpen(false);
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -143,15 +157,75 @@ export function Navbar() {
 
       {/* Right control buttons */}
       <div className="flex items-center gap-1.5">
-        <button
-          className="p-2 rounded-xl text-gray-500 hover:text-gray-900 hover:bg-gray-100 active:scale-95 transition-all relative outline-none"
-          aria-label="Notifications — 3 unread"
-        >
-          <Bell className="h-[19px] w-[19px]" />
-          <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 flex items-center justify-center rounded-full bg-[#FF3B30] text-[9px] font-bold text-white ring-2 ring-white tabular-nums">
-            3
-          </span>
-        </button>
+        {/* Notifications */}
+        <div className="relative" ref={notifRef}>
+          <button
+            onClick={() => setIsNotifOpen((o) => !o)}
+            className={cn(
+              "p-2 rounded-xl active:scale-95 transition-all relative outline-none",
+              isNotifOpen ? "bg-gray-100 text-gray-900" : "text-gray-500 hover:text-gray-900 hover:bg-gray-100",
+            )}
+            aria-label={`Notifications${unreadCount ? ` — ${unreadCount} unread` : ""}`}
+            aria-expanded={isNotifOpen}
+            aria-haspopup="true"
+          >
+            <Bell className="h-[19px] w-[19px]" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 flex items-center justify-center rounded-full bg-[#FF3B30] text-[9px] font-bold text-white ring-2 ring-white tabular-nums">
+                {unreadCount}
+              </span>
+            )}
+          </button>
+
+          {isNotifOpen && (
+            <div className="absolute right-0 mt-2.5 w-[340px] max-w-[calc(100vw-2rem)] rounded-2xl border border-[#ececec] bg-white shadow-[0_12px_32px_rgba(0,0,0,0.12)] animate-scale-in z-50 overflow-hidden">
+              <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+                <h3 className="text-sm font-bold text-gray-900">Notifications</h3>
+                {unreadCount > 0 && (
+                  <button onClick={markAllRead} className="inline-flex items-center gap-1 text-xs font-semibold text-[#0E72ED] hover:underline cursor-pointer">
+                    <CheckCheck className="h-3.5 w-3.5" /> Mark all read
+                  </button>
+                )}
+              </div>
+
+              {notifs.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 px-6 py-12 text-center">
+                  <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-50 text-gray-300"><BellOff className="h-6 w-6" /></span>
+                  <p className="text-sm font-semibold text-gray-700">You’re all caught up</p>
+                  <p className="text-xs text-gray-400">No new notifications.</p>
+                </div>
+              ) : (
+                <div className="max-h-[360px] overflow-y-auto py-1.5">
+                  {notifs.map((n) => {
+                    const Icon = n.type === "meeting" ? Calendar : n.type === "message" ? MessageSquare : UserPlus;
+                    const tint = n.type === "meeting" ? "bg-[#0E72ED]/10 text-[#0E72ED]" : n.type === "message" ? "bg-emerald-500/10 text-emerald-600" : "bg-violet-500/10 text-violet-600";
+                    return (
+                      <button
+                        key={n.id}
+                        onClick={() => markRead(n.id)}
+                        className={cn("flex w-full items-start gap-3 px-4 py-2.5 text-left transition-colors hover:bg-gray-50 cursor-pointer", !n.read && "bg-[#0E72ED]/[0.03]")}
+                      >
+                        <span className={cn("mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full", tint)}><Icon className="h-[18px] w-[18px]" /></span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center gap-1.5">
+                            <span className="truncate text-sm font-semibold text-gray-900">{n.title}</span>
+                            {!n.read && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#0E72ED]" />}
+                          </span>
+                          <span className="block truncate text-xs text-gray-500">{n.detail}</span>
+                        </span>
+                        <span className="shrink-0 text-[11px] font-medium text-gray-400">{n.time}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              <Link href="/meetings" onClick={() => setIsNotifOpen(false)} className="block border-t border-gray-100 px-4 py-2.5 text-center text-xs font-semibold text-[#0E72ED] transition hover:bg-gray-50">
+                View all activity
+              </Link>
+            </div>
+          )}
+        </div>
 
         <button
           className="p-2 rounded-xl text-gray-500 hover:text-gray-900 hover:bg-gray-100 active:scale-95 transition-all outline-none"
