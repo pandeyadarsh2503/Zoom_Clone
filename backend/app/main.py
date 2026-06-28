@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logging_config import configure_logging
 from app.db.init_db import seed_default_user
+from app.db.seed import seed_sample_data
 from app.db.session import SessionLocal, engine
 
 # Import all models so that Base.metadata is populated before create_all().
@@ -30,6 +31,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         1. Configure logging so every subsequent log call is formatted correctly.
         2. Create all DB tables (idempotent — safe to call on every startup).
         3. Seed the default user if the users table is empty.
+        4. Seed sample meetings and participants if no meetings exist.
 
     Shutdown:
         Log a clean shutdown message.
@@ -49,6 +51,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     db = SessionLocal()
     try:
         seed_default_user(db)
+        seed_sample_data(db)
     finally:
         db.close()
 

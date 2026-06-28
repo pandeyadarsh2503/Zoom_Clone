@@ -2,11 +2,16 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+
+if TYPE_CHECKING:
+    from app.models.meeting import Meeting
+    from app.models.participant import Participant
 
 
 class User(Base):
@@ -52,3 +57,18 @@ class User(Base):
 
     def __repr__(self) -> str:
         return f"<User id={self.id!r} display_name={self.display_name!r}>"
+
+    # ── Relationships ─────────────────────────────────────────────
+    # String literals avoid circular imports at module load time.
+    # SQLAlchemy resolves them lazily from the mapper registry.
+    hosted_meetings: Mapped[list[Meeting]] = relationship(
+        "Meeting",
+        back_populates="host",
+        foreign_keys="[Meeting.host_id]",
+        doc="All meetings this user has created as host.",
+    )
+    participations: Mapped[list[Participant]] = relationship(
+        "Participant",
+        back_populates="user",
+        doc="All participant records across every meeting this user joined.",
+    )
