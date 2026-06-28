@@ -33,6 +33,18 @@ class User(Base):
         default=lambda: str(uuid.uuid4()),
         doc="UUID primary key — safe to expose in URLs.",
     )
+    email: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        unique=True,
+        index=True,
+        doc="Login email. Unique across users.",
+    )
+    password_hash: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        doc="PBKDF2 password hash. NULL only for the legacy seeded user before migration.",
+    )
     display_name: Mapped[str] = mapped_column(
         String(100),
         nullable=False,
@@ -42,6 +54,12 @@ class User(Base):
         String(500),
         nullable=True,
         doc="Optional URL to a profile picture.",
+    )
+    plan: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="free",
+        doc="Billing plan: free | pro | business.",
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
