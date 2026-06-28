@@ -83,6 +83,10 @@ class Meeting(Base):
             "max_participants > 0",
             name="ck_meeting_max_participants_positive",
         ),
+        CheckConstraint(
+            "duration_minutes > 0",
+            name="ck_meeting_duration_positive",
+        ),
         # ── Performance indexes ─────────────────────────────────
         Index("ix_meetings_host_id", "host_id"),
         Index("ix_meetings_status", "status"),
@@ -166,6 +170,12 @@ class Meeting(Base):
         nullable=False,
         default=100,
         doc="Capacity cap. Enforced at join time by MeetingService.",
+    )
+    duration_minutes: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=30,
+        doc="Planned length of the meeting in minutes. Used to derive the end time.",
     )
 
     # ── Audit timestamps ─────────────────────────────────────────

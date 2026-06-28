@@ -1,7 +1,7 @@
 export type { User, UserUpdate } from "./user";
 export type {
   Meeting,
-  MeetingCreate,
+  ScheduledMeetingCreate,
   MeetingUpdate,
   MeetingStatus,
 } from "./meeting";

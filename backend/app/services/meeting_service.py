@@ -82,6 +82,100 @@ class MeetingService:
         value = value.split("?", 1)[0].split("#", 1)[0].strip().strip("/")
         return value.lower()
 
+    # ── Scheduled meetings (CRUD) ─────────────────────────────────
+
+    def create_scheduled_meeting(
+        self,
+        host: User,
+        *,
+        title: str,
+        description: str | None,
+        scheduled_at: datetime,
+        duration_minutes: int,
+    ) -> Meeting:
+        """
+        Create a SCHEDULED meeting for a future time.
+
+        Generates a unique join code (→ invite link), persists the meeting, and
+        adds the host's Participant row so it surfaces in the host's dashboard.
+        """
+        code = self._generate_unique_code()
+        meeting = Meeting(
+            host_id=host.id,
+            title=title.strip(),
+            description=(description or "").strip() or None,
+            meeting_code=code,
+            status=MeetingStatus.SCHEDULED,
+            scheduled_at=scheduled_at,
+            started_at=None,
+            ended_at=None,
+            max_participants=100,
+            duration_minutes=duration_minutes,
+        )
+        self.db.add(meeting)
+        self.db.flush()
+
+        self.db.add(
+            Participant(
+                meeting_id=meeting.id,
+                user_id=host.id,
+                role=ParticipantRole.HOST,
+                joined_at=datetime.now(timezone.utc),
+                left_at=datetime.now(timezone.utc),  # not in the room until it starts
+            )
+        )
+        self.db.commit()
+        self.db.refresh(meeting)
+        logger.info("Scheduled meeting %s (code=%s) by user %s", meeting.id, code, host.id)
+        return meeting
+
+    def get_meeting(self, meeting_id: str) -> Meeting:
+        """Fetch a meeting by id, or raise 404."""
+        meeting = self.meetings.get_by_id(meeting_id)
+        if meeting is None:
+            raise NotFoundException("Meeting", meeting_id)
+        return meeting
+
+    def update_scheduled_meeting(
+        self,
+        meeting_id: str,
+        *,
+        title: str | None = None,
+        description: str | None = None,
+        scheduled_at: datetime | None = None,
+        duration_minutes: int | None = None,
+    ) -> Meeting:
+        """
+        Update an editable (scheduled) meeting. Only fields provided are changed.
+
+        Editing is restricted to SCHEDULED meetings — a live/ended/cancelled
+        meeting cannot be rescheduled.
+        """
+        meeting = self.get_meeting(meeting_id)
+        if meeting.status != MeetingStatus.SCHEDULED:
+            raise UnprocessableException("Only scheduled meetings can be edited.")
+
+        if title is not None:
+            meeting.title = title.strip()
+        if description is not None:
+            meeting.description = description.strip() or None
+        if scheduled_at is not None:
+            meeting.scheduled_at = scheduled_at
+        if duration_minutes is not None:
+            meeting.duration_minutes = duration_minutes
+
+        self.db.commit()
+        self.db.refresh(meeting)
+        logger.info("Updated scheduled meeting %s", meeting_id)
+        return meeting
+
+    def delete_meeting(self, meeting_id: str) -> None:
+        """Delete a meeting (cascades to its participants)."""
+        meeting = self.get_meeting(meeting_id)
+        self.db.delete(meeting)
+        self.db.commit()
+        logger.info("Deleted meeting %s", meeting_id)
+
     # ── Join ──────────────────────────────────────────────────────
 
     def join_meeting(self, identifier: str, display_name: str, user: User) -> Meeting:

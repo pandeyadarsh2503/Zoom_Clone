@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Query, Response, status
 
 from app.api.deps import CurrentUser, DbSession
 from app.models.enums import MeetingStatus
@@ -11,8 +11,11 @@ from app.schemas.meeting import (
     InstantMeetingResponse,
     JoinMeetingRequest,
     JoinMeetingResponse,
+    MeetingDetailResponse,
     MeetingListOut,
     MeetingOut,
+    MeetingUpdate,
+    ScheduledMeetingCreate,
 )
 from app.services.meeting_service import MeetingService
 
@@ -90,3 +93,74 @@ def join_meeting(
         **MeetingOut.model_validate(meeting).model_dump(),
         invite_url=invite_url,
     )
+
+
+def _to_detail(service: MeetingService, meeting) -> MeetingDetailResponse:
+    return MeetingDetailResponse(
+        **MeetingOut.model_validate(meeting).model_dump(),
+        invite_url=service.build_invite_url(meeting.meeting_code),
+    )
+
+
+@router.post(
+    "",
+    response_model=MeetingDetailResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Schedule a meeting",
+    description="Creates a SCHEDULED meeting with an auto-generated join code and invite link.",
+)
+def create_scheduled_meeting(
+    payload: ScheduledMeetingCreate, db: DbSession, current_user: CurrentUser
+) -> MeetingDetailResponse:
+    service = MeetingService(db)
+    meeting = service.create_scheduled_meeting(
+        current_user,
+        title=payload.title,
+        description=payload.description,
+        scheduled_at=payload.scheduled_at,
+        duration_minutes=payload.duration_minutes,
+    )
+    return _to_detail(service, meeting)
+
+
+@router.get(
+    "/{meeting_id}",
+    response_model=MeetingDetailResponse,
+    summary="Get a meeting",
+    description="Returns a single meeting by id, with its invite link.",
+)
+def get_meeting(meeting_id: str, db: DbSession, current_user: CurrentUser) -> MeetingDetailResponse:
+    service = MeetingService(db)
+    return _to_detail(service, service.get_meeting(meeting_id))
+
+
+@router.patch(
+    "/{meeting_id}",
+    response_model=MeetingDetailResponse,
+    summary="Edit a scheduled meeting",
+    description="Updates the title, description, time, and/or duration of a scheduled meeting.",
+)
+def update_meeting(
+    meeting_id: str, payload: MeetingUpdate, db: DbSession, current_user: CurrentUser
+) -> MeetingDetailResponse:
+    service = MeetingService(db)
+    meeting = service.update_scheduled_meeting(
+        meeting_id,
+        title=payload.title,
+        description=payload.description,
+        scheduled_at=payload.scheduled_at,
+        duration_minutes=payload.duration_minutes,
+    )
+    return _to_detail(service, meeting)
+
+
+@router.delete(
+    "/{meeting_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a meeting",
+    description="Permanently deletes a meeting and its participant records.",
+)
+def delete_meeting(meeting_id: str, db: DbSession, current_user: CurrentUser) -> Response:
+    service = MeetingService(db)
+    service.delete_meeting(meeting_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

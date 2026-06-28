@@ -12,11 +12,10 @@
  * share one content width and align to the same columns.
  */
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Video,
-  Plus,
   Calendar,
   CalendarRange,
   Clock,
@@ -27,6 +26,9 @@ import {
   AlertCircle,
   CalendarX2,
   ArrowUpRight,
+  Pencil,
+  Trash2,
+  Link as LinkIcon,
 } from "lucide-react";
 import { useUserStore } from "@/store/userStore";
 import { cn, formatTime, formatRelativeDay, formatDuration, isToday } from "@/lib/utils";
@@ -142,6 +144,13 @@ function PlusGlyph() {
 
 // ── Meeting row ─────────────────────────────────────────────────────────────
 
+interface RowMenuItem {
+  label: string;
+  icon: React.ReactNode;
+  onClick: () => void;
+  danger?: boolean;
+}
+
 function MeetingRow({
   meeting,
   primaryTime,
@@ -151,6 +160,7 @@ function MeetingRow({
   action,
   onAction,
   onOptions,
+  menuItems,
 }: {
   meeting: Meeting;
   primaryTime: string;
@@ -159,8 +169,21 @@ function MeetingRow({
   emphasized?: boolean;
   action: { label: string; primary: boolean };
   onAction: () => void;
-  onOptions: () => void;
+  onOptions?: () => void;
+  menuItems?: RowMenuItem[];
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [menuOpen]);
+
   return (
     <div
       className={cn(
@@ -199,13 +222,38 @@ function MeetingRow({
         >
           {action.label}
         </button>
-        <button
-          onClick={onOptions}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-400 transition-all hover:border-gray-300 hover:bg-gray-50 hover:text-gray-700 outline-none cursor-pointer"
-          aria-label="Meeting options"
-        >
-          <MoreHorizontal className="h-4 w-4" />
-        </button>
+        <div className="relative" ref={menuRef}>
+          <button
+            onClick={() => (menuItems ? setMenuOpen((o) => !o) : onOptions?.())}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-400 transition-all hover:border-gray-300 hover:bg-gray-50 hover:text-gray-700 outline-none cursor-pointer"
+            aria-label="Meeting options"
+            aria-haspopup={menuItems ? "menu" : undefined}
+            aria-expanded={menuItems ? menuOpen : undefined}
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </button>
+          {menuItems && menuOpen && (
+            <div className="absolute right-0 top-full z-20 mt-1.5 w-44 rounded-xl border border-[#ececec] bg-white p-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.12)] animate-scale-in" role="menu">
+              {menuItems.map((item) => (
+                <button
+                  key={item.label}
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    item.onClick();
+                  }}
+                  className={cn(
+                    "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors cursor-pointer outline-none",
+                    item.danger ? "text-red-600 hover:bg-red-50" : "text-gray-700 hover:bg-gray-50",
+                  )}
+                >
+                  {item.icon}
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -232,32 +280,56 @@ export default function DashboardPage() {
 
   const [greeting, setGreeting] = useState("Good afternoon");
 
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        const response = await meetingsApi.getMeetings();
-        if (active) {
-          setMeetings(response.items);
-          setError(null);
-        }
-      } catch (err: unknown) {
-        console.error("Failed to load meetings:", err);
-        if (active) setError(err instanceof Error ? err.message : "Failed to load meetings.");
-      } finally {
-        if (active) setIsLoading(false);
-      }
-    })();
+  // Delete confirmation.
+  const [meetingToDelete, setMeetingToDelete] = useState<Meeting | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  const loadMeetings = useCallback(async () => {
+    try {
+      const response = await meetingsApi.getMeetings();
+      setMeetings(response.items);
+      setError(null);
+    } catch (err: unknown) {
+      console.error("Failed to load meetings:", err);
+      setError(err instanceof Error ? err.message : "Failed to load meetings.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadMeetings();
     const hour = new Date().getHours();
     if (hour >= 5 && hour < 12) setGreeting("Good morning");
     else if (hour >= 12 && hour < 17) setGreeting("Good afternoon");
     else setGreeting("Good evening");
+  }, [loadMeetings]);
 
-    return () => {
-      active = false;
-    };
-  }, []);
+  const copyInviteLink = (meeting: Meeting) => {
+    const link = `${window.location.origin}/room/${meeting.meeting_code}`;
+    navigator.clipboard?.writeText(link).catch(() => {});
+    setCopiedId(meeting.id);
+    setTimeout(() => setCopiedId((id) => (id === meeting.id ? null : id)), 1600);
+  };
+
+  const confirmDelete = async () => {
+    if (!meetingToDelete || isDeleting) return;
+    setIsDeleting(true);
+    try {
+      await meetingsApi.deleteMeeting(meetingToDelete.id);
+      setMeetingToDelete(null);
+      await loadMeetings();
+    } catch (err: unknown) {
+      console.error("Failed to delete meeting:", err);
+      triggerAction(
+        "Couldn’t delete meeting",
+        err instanceof Error ? err.message : "Please try again.",
+      );
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const triggerAction = (title: string, desc: string) => {
     setPlaceholderTitle(title);
@@ -386,7 +458,7 @@ export default function DashboardPage() {
             subtitle="Plan a meeting ahead"
             icon={<Calendar className="h-6 w-6" />}
             gradient="bg-gradient-to-br from-[#6E8BFF] to-[#3D5AFE]"
-            onClick={() => triggerAction("Schedule Meeting", "Plan meeting details, time, and invitations. Fully active in Phase 2.")}
+            onClick={() => router.push("/schedule")}
           />
         </div>
         <div className="col-span-12 sm:col-span-6 lg:col-span-3">
@@ -452,6 +524,9 @@ export default function DashboardPage() {
                             <User className="h-4 w-4" /> Host: You
                           </span>
                           <span className="flex items-center gap-2">
+                            <Clock className="h-4 w-4" /> {meeting.duration_minutes} min
+                          </span>
+                          <span className="flex items-center gap-2">
                             <Users className="h-4 w-4" /> Up to {meeting.max_participants}
                           </span>
                         </>
@@ -462,7 +537,24 @@ export default function DashboardPage() {
                           `${meeting.status === "live" ? "Joining" : "Starting"} "${meeting.title}" (${meeting.meeting_code}). Live media activates in Phase 3.`,
                         )
                       }
-                      onOptions={() => triggerAction("Meeting Options", `Manage settings for "${meeting.title}".`)}
+                      menuItems={[
+                        {
+                          label: "Edit",
+                          icon: <Pencil className="h-4 w-4" />,
+                          onClick: () => router.push(`/schedule?id=${meeting.id}`),
+                        },
+                        {
+                          label: copiedId === meeting.id ? "Copied!" : "Copy link",
+                          icon: <LinkIcon className="h-4 w-4" />,
+                          onClick: () => copyInviteLink(meeting),
+                        },
+                        {
+                          label: "Delete",
+                          icon: <Trash2 className="h-4 w-4" />,
+                          danger: true,
+                          onClick: () => setMeetingToDelete(meeting),
+                        },
+                      ]}
                     />
                   );
                 })}
@@ -535,6 +627,46 @@ export default function DashboardPage() {
 
       {/* Join meeting */}
       <JoinMeetingModal isOpen={isJoinOpen} onClose={() => setIsJoinOpen(false)} />
+
+      {/* Delete confirmation */}
+      {meetingToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal>
+          <div
+            className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm animate-fade-in"
+            onClick={() => !isDeleting && setMeetingToDelete(null)}
+            aria-hidden
+          />
+          <div className="surface-card relative z-10 w-full max-w-sm animate-fade-in p-6">
+            <div className="flex items-start gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600">
+                <Trash2 className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-lg font-bold text-gray-900 leading-tight">Delete meeting?</h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  “{meetingToDelete.title}” will be permanently removed. This can’t be undone.
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setMeetingToDelete(null)}
+                disabled={isDeleting}
+                className="inline-flex h-10 items-center rounded-lg px-4 text-sm font-semibold text-gray-600 transition hover:bg-gray-100 cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={isDeleting}
+                className="inline-flex h-10 min-w-[90px] items-center justify-center gap-2 rounded-lg bg-red-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:cursor-wait disabled:opacity-90 cursor-pointer"
+              >
+                {isDeleting ? <Spinner size="sm" className="text-white" /> : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Placeholder modal */}
       <Modal isOpen={isPlaceholderOpen} onClose={() => setIsPlaceholderOpen(false)} title={placeholderTitle} size="sm">

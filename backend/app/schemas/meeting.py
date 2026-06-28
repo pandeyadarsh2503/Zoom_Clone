@@ -15,6 +15,21 @@ class MeetingBase(BaseModel):
     description: Optional[str] = Field(default=None, max_length=4000)
     scheduled_at: Optional[datetime] = None
     max_participants: int = Field(default=100, ge=1, le=1000)
+    duration_minutes: int = Field(default=30, ge=5, le=1440)
+
+
+class ScheduledMeetingCreate(BaseModel):
+    """
+    POST /meetings — body for scheduling a future meeting.
+
+    `scheduled_at` is required (unlike an instant meeting) and is the combined
+    date + time. `meeting_code` / invite link are generated server-side.
+    """
+
+    title: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = Field(default=None, max_length=4000)
+    scheduled_at: datetime
+    duration_minutes: int = Field(default=30, ge=5, le=1440)
 
 
 class MeetingCreate(MeetingBase):
@@ -43,6 +58,7 @@ class MeetingUpdate(BaseModel):
     description: Optional[str] = Field(default=None, max_length=4000)
     scheduled_at: Optional[datetime] = None
     max_participants: Optional[int] = Field(default=None, ge=1, le=1000)
+    duration_minutes: Optional[int] = Field(default=None, ge=5, le=1440)
 
 
 class MeetingOut(MeetingBase):
@@ -101,5 +117,16 @@ class JoinMeetingRequest(BaseModel):
 
 class JoinMeetingResponse(MeetingOut):
     """Response for POST /meetings/join — the joined meeting plus its invite URL."""
+
+    invite_url: str
+
+
+class MeetingDetailResponse(MeetingOut):
+    """
+    Single-meeting response (create / fetch / update of a scheduled meeting).
+
+    Includes the auto-generated `invite_url` so the scheduling UI can show and
+    share the link immediately.
+    """
 
     invite_url: str

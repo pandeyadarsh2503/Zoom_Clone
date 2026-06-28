@@ -11,20 +11,21 @@ export interface Meeting {
   started_at: string | null;
   ended_at: string | null;
   max_participants: number;
+  duration_minutes: number;
   created_at: string;
   updated_at: string;
 }
 
-export interface MeetingCreate {
+export interface ScheduledMeetingCreate {
   title: string;
   description?: string;
-  scheduled_at?: string;
-  max_participants?: number;
+  scheduled_at: string; // ISO-8601 (local)
+  duration_minutes: number;
 }
 
 export interface MeetingUpdate {
   title?: string;
   description?: string;
   scheduled_at?: string;
-  max_participants?: number;
+  duration_minutes?: number;
 }

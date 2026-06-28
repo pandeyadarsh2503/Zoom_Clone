@@ -1,5 +1,10 @@
 import { apiClient } from "./client";
-import type { Meeting, MeetingStatus } from "@/types/meeting";
+import type {
+  Meeting,
+  MeetingStatus,
+  MeetingUpdate,
+  ScheduledMeetingCreate,
+} from "@/types/meeting";
 
 export interface MeetingsResponse {
   items: Meeting[];
@@ -22,6 +27,11 @@ export interface JoinMeetingResponse extends Meeting {
   invite_url: string;
 }
 
+/** Single-meeting response (create / get / update of a scheduled meeting). */
+export interface MeetingDetailResponse extends Meeting {
+  invite_url: string;
+}
+
 /**
  * Meeting-domain API calls.
  */
@@ -40,5 +50,25 @@ export const meetingsApi = {
   /** POST /api/v1/meetings/join — join an existing meeting by code or invite link. */
   joinMeeting(payload: JoinMeetingPayload): Promise<JoinMeetingResponse> {
     return apiClient.post<JoinMeetingResponse>("/api/v1/meetings/join", payload);
+  },
+
+  /** POST /api/v1/meetings — schedule a future meeting. */
+  createScheduled(payload: ScheduledMeetingCreate): Promise<MeetingDetailResponse> {
+    return apiClient.post<MeetingDetailResponse>("/api/v1/meetings", payload);
+  },
+
+  /** GET /api/v1/meetings/{id} — fetch a single meeting (for the edit form). */
+  getMeeting(id: string): Promise<MeetingDetailResponse> {
+    return apiClient.get<MeetingDetailResponse>(`/api/v1/meetings/${id}`);
+  },
+
+  /** PATCH /api/v1/meetings/{id} — edit a scheduled meeting. */
+  updateMeeting(id: string, payload: MeetingUpdate): Promise<MeetingDetailResponse> {
+    return apiClient.patch<MeetingDetailResponse>(`/api/v1/meetings/${id}`, payload);
+  },
+
+  /** DELETE /api/v1/meetings/{id} — delete a meeting. */
+  deleteMeeting(id: string): Promise<void> {
+    return apiClient.delete<void>(`/api/v1/meetings/${id}`);
   },
 };
