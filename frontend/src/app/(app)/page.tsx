@@ -13,6 +13,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Video,
   Plus,
@@ -94,17 +95,21 @@ function ActionCard({
   icon,
   gradient,
   onClick,
+  loading = false,
 }: {
   title: string;
   subtitle: string;
   icon: React.ReactNode;
   gradient: string;
   onClick: () => void;
+  loading?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
-      className="group surface-card lift-hover flex h-full w-full items-center gap-4 p-6 text-left outline-none cursor-pointer focus-visible:ring-4 focus-visible:ring-[#0E72ED]/15"
+      disabled={loading}
+      aria-busy={loading}
+      className="group surface-card lift-hover flex h-full w-full items-center gap-4 p-6 text-left outline-none cursor-pointer focus-visible:ring-4 focus-visible:ring-[#0E72ED]/15 disabled:cursor-wait disabled:opacity-90"
     >
       <span
         className={cn(
@@ -112,11 +117,13 @@ function ActionCard({
           gradient,
         )}
       >
-        {icon}
+        {loading ? <Spinner size="sm" className="text-white" /> : icon}
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-base font-bold text-gray-900 leading-tight">{title}</span>
-        <span className="mt-2 block text-sm text-gray-500 leading-tight">{subtitle}</span>
+        <span className="mt-2 block text-sm text-gray-500 leading-tight">
+          {loading ? "Starting…" : subtitle}
+        </span>
       </span>
       <ChevronRight className="h-4 w-4 shrink-0 text-gray-300 group-hover:text-gray-500 group-hover:translate-x-0.5 transition-all" />
     </button>
@@ -206,11 +213,15 @@ function MeetingRow({
 // ── Page ────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  const router = useRouter();
   const user = useUserStore((state) => state.user);
 
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Instant-meeting creation — guards against duplicate clicks.
+  const [isCreatingInstant, setIsCreatingInstant] = useState(false);
 
   const [isPlaceholderOpen, setIsPlaceholderOpen] = useState(false);
   const [placeholderTitle, setPlaceholderTitle] = useState("");
@@ -251,14 +262,40 @@ export default function DashboardPage() {
     setIsPlaceholderOpen(true);
   };
 
+  /**
+   * Start an instant meeting and jump straight into its room.
+   * - Guards against duplicate clicks while a request is in flight.
+   * - On success the meeting is LIVE and persisted, so it appears in
+   *   "Recent Meetings" when the user returns to the dashboard.
+   * - On failure, surfaces the backend error and re-enables the button.
+   */
+  const handleNewMeeting = async () => {
+    if (isCreatingInstant) return; // prevent duplicate clicks
+    setIsCreatingInstant(true);
+    try {
+      const meeting = await meetingsApi.createInstantMeeting();
+      router.push(`/room/${meeting.meeting_code}`); // redirect automatically
+      // Intentionally leave the button busy — we are navigating away.
+    } catch (err: unknown) {
+      console.error("Failed to start instant meeting:", err);
+      triggerAction(
+        "Couldn’t start the meeting",
+        err instanceof Error ? err.message : "Something went wrong. Please try again.",
+      );
+      setIsCreatingInstant(false);
+    }
+  };
+
   const firstName = (user?.display_name || "Default User").split(" ")[0];
 
+  // Upcoming = planned for the future · Recent = started / finished activity
+  // (newest first). An instant meeting is LIVE, so it lands at the top of Recent.
   const upcomingList = useMemo(
-    () => meetings.filter((m) => m.status === "live" || m.status === "scheduled"),
+    () => meetings.filter((m) => m.status === "scheduled"),
     [meetings],
   );
   const recentList = useMemo(
-    () => meetings.filter((m) => m.status === "ended" || m.status === "cancelled"),
+    () => meetings.filter((m) => m.status !== "scheduled"),
     [meetings],
   );
 
@@ -327,7 +364,8 @@ export default function DashboardPage() {
             subtitle="Start an instant meeting"
             icon={<Video className="h-6 w-6" />}
             gradient="bg-gradient-to-br from-[#FF8A4C] to-[#FF5630]"
-            onClick={() => triggerAction("New Meeting", "Start an instant video room. Fully active in Phase 3.")}
+            loading={isCreatingInstant}
+            onClick={handleNewMeeting}
           />
         </div>
         <div className="col-span-12 sm:col-span-6 lg:col-span-3">
@@ -444,18 +482,24 @@ export default function DashboardPage() {
             ) : (
               <div className="surface-card divide-y divide-gray-100 overflow-hidden">
                 {recentList.map((meeting) => {
-                  const ts = meeting.ended_at ?? meeting.scheduled_at ?? meeting.created_at;
+                  const ts =
+                    meeting.ended_at ?? meeting.started_at ?? meeting.scheduled_at ?? meeting.created_at;
                   const duration =
                     meeting.started_at && meeting.ended_at
                       ? formatDuration(meeting.started_at, meeting.ended_at)
                       : null;
+                  const isLive = meeting.status === "live";
                   return (
                     <MeetingRow
                       key={meeting.id}
                       meeting={meeting}
                       primaryTime={formatRelativeDay(ts)}
                       secondaryTime={formatTime(ts)}
-                      action={{ label: meeting.status === "ended" ? "View Recording" : "Details", primary: false }}
+                      emphasized={isLive}
+                      action={{
+                        label: isLive ? "Join" : meeting.status === "ended" ? "View Recording" : "Details",
+                        primary: isLive,
+                      }}
                       meta={
                         <>
                           <span className="flex items-center gap-2">
@@ -469,10 +513,12 @@ export default function DashboardPage() {
                         </>
                       }
                       onAction={() =>
-                        triggerAction(
-                          meeting.status === "ended" ? "View Recording" : "Meeting Details",
-                          `Opening "${meeting.title}" (${meeting.meeting_code}).`,
-                        )
+                        isLive
+                          ? router.push(`/room/${meeting.meeting_code}`)
+                          : triggerAction(
+                              meeting.status === "ended" ? "View Recording" : "Meeting Details",
+                              `Opening "${meeting.title}" (${meeting.meeting_code}).`,
+                            )
                       }
                       onOptions={() => triggerAction("Meeting Options", `Manage settings for "${meeting.title}".`)}
                     />

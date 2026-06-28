@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     # ── Database ─────────────────────────────────────────────
     DATABASE_URL: str = "sqlite:///./zoom_clone.db"
 
+    # ── Frontend ─────────────────────────────────────────────
+    # Base URL used to build shareable meeting invite links.
+    FRONTEND_URL: str = "http://localhost:3000"
+
     # ── CORS ─────────────────────────────────────────────────
     # Accepts a JSON array string from the environment variable.
     ALLOWED_ORIGINS: list[str] = [

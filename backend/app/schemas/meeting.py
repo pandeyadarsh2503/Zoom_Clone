@@ -72,3 +72,15 @@ class MeetingListOut(BaseModel):
 
     items: list[MeetingOut]
     total: int
+
+
+class InstantMeetingResponse(MeetingOut):
+    """
+    Response for POST /meetings/instant.
+
+    Extends the full meeting representation with a ready-to-share `invite_url`
+    so the client can redirect to (and share) the room without reconstructing
+    the link itself.
+    """
+
+    invite_url: str

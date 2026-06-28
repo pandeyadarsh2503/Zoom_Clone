@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, status
 
 from app.api.deps import CurrentUser, DbSession
 from app.models.enums import MeetingStatus
 from app.repositories.meeting_repo import MeetingRepository
-from app.schemas.meeting import MeetingListOut
+from app.schemas.meeting import InstantMeetingResponse, MeetingListOut, MeetingOut
+from app.services.meeting_service import MeetingService
 
 router = APIRouter(prefix="/meetings", tags=["meetings"])
 
@@ -41,3 +42,23 @@ def get_meetings(
         "items": filtered,
         "total": len(filtered),
     }
+
+
+@router.post(
+    "/instant",
+    response_model=InstantMeetingResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Start an instant meeting",
+    description=(
+        "Creates a LIVE meeting hosted by the current user, generates a unique "
+        "join code and shareable invite URL, and returns the new meeting."
+    ),
+)
+def create_instant_meeting(db: DbSession, current_user: CurrentUser) -> InstantMeetingResponse:
+    service = MeetingService(db)
+    meeting = service.create_instant_meeting(current_user)
+    invite_url = service.build_invite_url(meeting.meeting_code)
+    return InstantMeetingResponse(
+        **MeetingOut.model_validate(meeting).model_dump(),
+        invite_url=invite_url,
+    )
