@@ -46,7 +46,24 @@ import {
 } from "lucide-react";
 import { useUserStore } from "@/store/userStore";
 import { useRoomStore } from "@/store/roomStore";
+import { useMeetingSocket } from "@/hooks/useMeetingSocket";
 import { cn, getInitials } from "@/lib/utils";
+
+// Deterministic avatar accent for a real (remote) participant.
+const REMOTE_ACCENTS = [
+  "from-pink-500 to-rose-500",
+  "from-cyan-500 to-blue-500",
+  "from-amber-500 to-orange-600",
+  "from-lime-500 to-emerald-600",
+  "from-indigo-500 to-purple-600",
+];
+function accentFor(id: string): string {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return REMOTE_ACCENTS[h % REMOTE_ACCENTS.length];
+}
+
+interface RemotePeer { id: string; name: string; accent: string; muted: boolean; videoOff: boolean; hand: boolean }
 
 // ── Hardcoded peers (UI placeholders — not from any backend) ────────────────
 interface Peer {
@@ -364,12 +381,13 @@ function PollsPanel({
 }
 
 // ── Breakout rooms panel ────────────────────────────────────────────────────
-function BreakoutPanel({ onClose, names }: { onClose: () => void; names: string[] }) {
+function BreakoutPanel({ onClose, names, onBroadcast }: { onClose: () => void; names: string[]; onBroadcast: (rooms: { name: string; members: string[] }[]) => void }) {
   const [rooms, setRooms] = useState<{ name: string; members: string[] }[] | null>(null);
   const create = (n: number) => {
     const r = Array.from({ length: n }, (_, i) => ({ name: `Room ${i + 1}`, members: [] as string[] }));
     names.forEach((m, i) => r[i % n].members.push(m));
     setRooms(r);
+    onBroadcast(r); // notify everyone over the backend
   };
   return (
     <PanelShell title="Breakout rooms" onClose={onClose}>
@@ -396,6 +414,93 @@ function BreakoutPanel({ onClose, names }: { onClose: () => void; names: string[
         </div>
       )}
     </PanelShell>
+  );
+}
+
+// ── Collaborative whiteboard canvas ─────────────────────────────────────────
+interface Stroke { points: number[][]; color: string; width: number }
+
+function drawStroke(ctx: CanvasRenderingContext2D, s: Stroke, w: number, h: number) {
+  if (!s.points || s.points.length < 1) return;
+  ctx.strokeStyle = s.color;
+  ctx.lineWidth = s.width || 3;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  s.points.forEach((p, i) => {
+    const x = p[0] * w, y = p[1] * h;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+}
+
+function WhiteboardCanvas({ strokes, onStroke, onClear }: { strokes: Stroke[]; onStroke: (s: Stroke) => void; onClear: () => void }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const drawing = useRef(false);
+  const current = useRef<number[][]>([]);
+  const [color, setColor] = useState("#0E72ED");
+
+  const redraw = () => {
+    const cv = canvasRef.current;
+    if (!cv) return;
+    const ctx = cv.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    strokes.forEach((s) => drawStroke(ctx, s, cv.width, cv.height));
+  };
+  useEffect(() => { redraw(); });
+
+  useEffect(() => {
+    const cv = canvasRef.current;
+    if (!cv) return;
+    const ro = new ResizeObserver(() => {
+      const r = cv.getBoundingClientRect();
+      cv.width = r.width;
+      cv.height = r.height;
+      redraw();
+    });
+    ro.observe(cv);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const pos = (e: React.PointerEvent): [number, number] => {
+    const cv = canvasRef.current!;
+    const r = cv.getBoundingClientRect();
+    return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height];
+  };
+  const down = (e: React.PointerEvent) => { drawing.current = true; current.current = [pos(e)]; (e.target as Element).setPointerCapture?.(e.pointerId); };
+  const move = (e: React.PointerEvent) => {
+    if (!drawing.current) return;
+    const p = pos(e);
+    const prev = current.current[current.current.length - 1];
+    current.current.push(p);
+    const cv = canvasRef.current!;
+    const ctx = cv.getContext("2d")!;
+    ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(prev[0] * cv.width, prev[1] * cv.height);
+    ctx.lineTo(p[0] * cv.width, p[1] * cv.height);
+    ctx.stroke();
+  };
+  const up = () => {
+    if (!drawing.current) return;
+    drawing.current = false;
+    if (current.current.length > 0) onStroke({ points: current.current, color, width: 3 });
+    current.current = [];
+  };
+
+  return (
+    <div className="relative h-full w-full overflow-hidden rounded-2xl bg-white">
+      <canvas ref={canvasRef} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={up} className="h-full w-full cursor-crosshair touch-none" />
+      <div className="absolute left-3 top-3 flex items-center gap-2 rounded-xl bg-white/95 p-1.5 shadow ring-1 ring-black/5">
+        {["#0E72ED", "#E5372A", "#16A34A", "#111827"].map((c) => (
+          <button key={c} onClick={() => setColor(c)} style={{ background: c }} className={cn("h-6 w-6 rounded-full transition", color === c && "ring-2 ring-gray-400 ring-offset-1")} aria-label={`Color ${c}`} />
+        ))}
+        <button onClick={onClear} className="ml-1 rounded-lg px-2 py-1 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 cursor-pointer">Clear</button>
+      </div>
+    </div>
   );
 }
 
@@ -446,6 +551,44 @@ export default function RoomPage() {
   const [whiteboardOn, setWhiteboardOn] = useState(false);
   // Poll (single active poll for this UI)
   const [poll, setPoll] = useState<{ question: string; options: { text: string; votes: number }[]; voted: number | null } | null>(null);
+
+  // ── Real-time backend (presence, chat, whiteboard, breakout) ──
+  const rt = useMeetingSocket(meetingCode, user?.display_name || "You");
+  const [remote, setRemote] = useState<RemotePeer[]>([]);
+  const [breakoutMsg, setBreakoutMsg] = useState<string | null>(null);
+  const [board, setBoard] = useState<Stroke[]>([]);
+
+  useEffect(() => {
+    const toRemote = (p: { id: string; name: string; is_muted: boolean; is_video_off: boolean; hand_raised: boolean }): RemotePeer => ({
+      id: p.id, name: p.name, accent: accentFor(p.id), muted: p.is_muted, videoOff: p.is_video_off, hand: p.hand_raised,
+    });
+    const offs = [
+      rt.on("room-state", (d: { participants: any[]; board?: Stroke[] }) => {
+        setRemote(d.participants.filter((p) => p.id !== rt.pid).map(toRemote));
+        setBoard(d.board ?? []);
+      }),
+      rt.on("draw", (d: { stroke: Stroke }) => setBoard((b) => [...b, d.stroke])),
+      rt.on("clear-board", () => setBoard([])),
+      rt.on("participant-joined", (d: { participant: any }) => {
+        setRemote((r) => [...r.filter((x) => x.id !== d.participant.id), toRemote(d.participant)]);
+      }),
+      rt.on("participant-left", (d: { participant_id: string }) => setRemote((r) => r.filter((x) => x.id !== d.participant_id))),
+      rt.on("chat", (d: { sender_id: string; name: string; text: string }) => {
+        setMessages((m) => [...m, { id: ++chatId.current, name: d.name, text: d.text, mine: d.sender_id === rt.pid, accent: YOU_ACCENT }]);
+      }),
+      rt.on("media-state", (d: { participant_id: string; kind: string; enabled: boolean }) => {
+        setRemote((r) => r.map((x) => (x.id === d.participant_id ? { ...x, muted: d.kind === "audio" ? !d.enabled : x.muted, videoOff: d.kind === "video" ? !d.enabled : x.videoOff } : x)));
+      }),
+      rt.on("hand", (d: { participant_id: string; raised: boolean }) => setRemote((r) => r.map((x) => (x.id === d.participant_id ? { ...x, hand: d.raised } : x)))),
+      rt.on("breakout", (d: { rooms: { name: string; members: string[] }[] }) => {
+        const meName = `${user?.display_name || "You"} (You)`;
+        const mine = d.rooms?.find((rm) => rm.members.some((m) => m === meName || m === (user?.display_name || "You")));
+        setBreakoutMsg(mine ? `You're assigned to ${mine.name}` : "Breakout rooms opened");
+      }),
+      rt.on("breakout-end", () => setBreakoutMsg(null)),
+    ];
+    return () => offs.forEach((o) => o());
+  }, [rt, user?.display_name]);
 
   useEffect(() => {
     const t = setInterval(() => setElapsed((e) => e + 1), 1000);
@@ -498,6 +641,7 @@ export default function RoomPage() {
   };
 
   const toggleHand = () => {
+    rt.send("hand", { raised: !handRaised });
     setHandRaised((h) => {
       flash(h ? "Hand lowered" : "Hand raised ✋");
       return !h;
@@ -514,15 +658,17 @@ export default function RoomPage() {
   const muteAll = () => { setPeers((ps) => ps.map((p) => ({ ...p, muted: true }))); flash("All participants muted"); };
   const toggleLock = () => { setLocked((l) => !l); flash(locked ? "Meeting unlocked" : "Meeting locked"); };
 
-  // Chat (functional, local). The first peer auto-acknowledges for liveliness.
-  const sendMessage = (text: string) => {
-    const id = ++chatId.current;
-    setMessages((m) => [...m, { id, name: youName, text, mine: true, accent: YOU_ACCENT }]);
-    const peer = peers[0];
-    if (peer) {
-      setTimeout(() => setMessages((m) => [...m, { id: ++chatId.current, name: peer.name, text: "👍", mine: false, accent: peer.accent }]), 1300);
-    }
-  };
+  // Chat — sent over the WebSocket; the server broadcasts it back to everyone
+  // (including us), so it renders via the "chat" subscription above.
+  const sendMessage = (text: string) => rt.send("chat", { text });
+
+  // Local media toggles also broadcast presence to other participants.
+  const handleToggleMute = () => { toggleMute(); rt.send("media-state", { kind: "audio", enabled: isMuted }); };
+  const handleToggleVideo = () => { toggleVideo(); rt.send("media-state", { kind: "video", enabled: isVideoOff }); };
+
+  // Whiteboard — strokes relay over WS (server doesn't echo to sender, so add locally).
+  const sendStroke = (s: Stroke) => { rt.send("draw", { stroke: s }); setBoard((b) => [...b, s]); };
+  const clearBoard = () => { rt.send("clear-board"); setBoard([]); };
 
   // Waiting room → admit. Updaters stay pure (no nested setState); peer adds
   // are deduped so React strict-mode's double-invoke can't double-admit.
@@ -560,9 +706,10 @@ export default function RoomPage() {
   const tiles = useMemo(
     () => [
       { id: "you", name: youName, initials: youInitials, videoOn: !isVideoOff, muted: isMuted, accent: YOU_ACCENT, you: true, host: isHost },
+      ...remote.map((r) => ({ id: r.id, name: r.name, initials: getInitials(r.name), videoOn: !r.videoOff, muted: r.muted, accent: r.accent, you: false, host: false })),
       ...peers.map((p) => ({ id: p.id, name: p.name, initials: getInitials(p.name), videoOn: p.videoOn, muted: p.muted, accent: p.accent, you: false, host: false })),
     ],
-    [youName, youInitials, isVideoOff, isMuted, peers, isHost],
+    [youName, youInitials, isVideoOff, isMuted, peers, isHost, remote],
   );
 
   // Rotate the "active speaker" among unmuted tiles for a lifelike highlight.
@@ -618,23 +765,29 @@ export default function RoomPage() {
             </button>
           </div>
           {isHost && <span className="hidden items-center gap-1.5 rounded-lg bg-amber-400/10 px-2.5 py-1 text-xs font-semibold text-amber-300 lg:inline-flex"><Crown className="h-3.5 w-3.5" /> Host</span>}
+          {rt.status !== "connected" && (
+            <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-400/10 px-2.5 py-1 text-xs font-semibold text-amber-300">
+              <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse-ring" /> {rt.status === "reconnecting" ? "Reconnecting…" : "Connecting…"}
+            </span>
+          )}
           <span className="rounded-lg bg-white/5 px-2.5 py-1 text-xs font-semibold tabular-nums text-white/80">{mmss}</span>
         </div>
       </header>
+
+      {breakoutMsg && (
+        <div className="flex items-center justify-center gap-2 border-b border-white/10 bg-[#0E72ED]/15 px-4 py-2 text-sm font-semibold text-[#2D8CFF]">
+          <Grid2x2 className="h-4 w-4" /> {breakoutMsg}
+        </div>
+      )}
 
       {/* Stage + panel */}
       <div className="relative flex min-h-0 flex-1">
         <main className="relative flex min-w-0 flex-1 flex-col p-3 sm:p-4">
           {whiteboardOn ? (
             <div className="flex min-h-0 flex-1 flex-col gap-3">
-              <div className="relative flex flex-1 items-center justify-center overflow-hidden rounded-2xl bg-white">
-                <span className="absolute left-3 top-3 rounded-lg bg-black/5 px-2 py-1 text-xs font-semibold text-gray-500">Whiteboard</span>
-                <button onClick={() => setWhiteboardOn(false)} className="absolute right-3 top-3 rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-200 cursor-pointer">Stop</button>
-                <div className="flex flex-col items-center gap-2 text-gray-400">
-                  <Presentation className="h-10 w-10" />
-                  <p className="text-sm font-semibold text-gray-600">Collaborative whiteboard</p>
-                  <p className="text-xs text-gray-400">Drawing tools are a placeholder in this build.</p>
-                </div>
+              <div className="relative min-h-0 flex-1">
+                <button onClick={() => setWhiteboardOn(false)} className="absolute right-3 top-3 z-10 rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-200 cursor-pointer">Stop</button>
+                <WhiteboardCanvas strokes={board} onStroke={sendStroke} onClear={clearBoard} />
               </div>
               <div className="flex h-24 shrink-0 gap-3 overflow-x-auto">
                 {tiles.map((t) => <VideoTile key={t.id} {...t} compact handRaised={t.you ? handRaised : false} />)}
@@ -760,7 +913,11 @@ export default function RoomPage() {
               ) : panel === "polls" ? (
                 <PollsPanel onClose={() => setPanel(null)} poll={poll} onCreate={createPoll} onVote={votePoll} />
               ) : panel === "breakout" ? (
-                <BreakoutPanel onClose={() => setPanel(null)} names={[`${youName} (You)`, ...peers.map((p) => p.name)]} />
+                <BreakoutPanel
+                  onClose={() => setPanel(null)}
+                  names={[`${youName} (You)`, ...remote.map((r) => r.name), ...peers.map((p) => p.name)]}
+                  onBroadcast={(rooms) => rt.send("breakout", { rooms })}
+                />
               ) : (
                 <ChatPanel onClose={() => setPanel(null)} messages={messages} onSend={sendMessage} />
               )}
@@ -771,8 +928,8 @@ export default function RoomPage() {
 
       {/* Toolbar */}
       <footer className="flex h-20 shrink-0 items-center justify-center gap-1 border-t border-white/10 px-3 sm:gap-2">
-        <ToolButton icon={isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />} label={isMuted ? "Unmute" : "Mute"} danger={isMuted} onClick={toggleMute} />
-        <ToolButton icon={isVideoOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />} label={isVideoOff ? "Start video" : "Stop video"} danger={isVideoOff} onClick={toggleVideo} />
+        <ToolButton icon={isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />} label={isMuted ? "Unmute" : "Mute"} danger={isMuted} onClick={handleToggleMute} />
+        <ToolButton icon={isVideoOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />} label={isVideoOff ? "Start video" : "Stop video"} danger={isVideoOff} onClick={handleToggleVideo} />
         <ToolButton icon={<MonitorUp className="h-5 w-5" />} label="Share" active={isSharingScreen} onClick={() => setIsSharingScreen(!isSharingScreen)} />
         <ToolButton icon={<Users className="h-5 w-5" />} label="Participants" badge={total} active={panel === "participants"} onClick={() => setPanel((p) => (p === "participants" ? null : "participants"))} />
         <ToolButton icon={<MessageSquare className="h-5 w-5" />} label="Chat" active={panel === "chat"} onClick={() => setPanel((p) => (p === "chat" ? null : "chat"))} />

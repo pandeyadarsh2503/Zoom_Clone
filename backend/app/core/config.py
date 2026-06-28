@@ -40,6 +40,15 @@ class Settings(BaseSettings):
     # Base URL used to build shareable meeting invite links.
     FRONTEND_URL: str = "http://localhost:3000"
 
+    # ── Auth ─────────────────────────────────────────────────
+    # Override SECRET_KEY in production via the environment.
+    SECRET_KEY: str = "dev-secret-change-me-in-production-0xZoomClone"
+    JWT_EXPIRES_SECONDS: int = 7 * 24 * 3600  # 7 days
+
+    # Seeded demo account so the sample data is reachable after login.
+    DEMO_EMAIL: str = "demo@zoom.clone"
+    DEMO_PASSWORD: str = "demo1234"
+
     # ── CORS ─────────────────────────────────────────────────
     # Accepts a JSON array string from the environment variable.
     ALLOWED_ORIGINS: list[str] = [
