@@ -31,6 +31,72 @@ export function formatDate(iso: string): string {
 }
 
 /**
+ * Formats an ISO-8601 timestamp into a bare clock time.
+ *
+ * Example output: "4:30 PM"
+ */
+export function formatTime(iso: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date(iso));
+}
+
+/**
+ * Returns a human-friendly day label relative to today.
+ *
+ * "Today" · "Tomorrow" · "Yesterday" · otherwise "Jun 26, 2026".
+ */
+export function formatRelativeDay(iso: string): string {
+  const target = new Date(iso);
+  const now = new Date();
+  const startOfDay = (d: Date) =>
+    new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diffDays = Math.round(
+    (startOfDay(target) - startOfDay(now)) / 86_400_000,
+  );
+
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Tomorrow";
+  if (diffDays === -1) return "Yesterday";
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(target);
+}
+
+/**
+ * Returns the duration between two ISO timestamps as "1h 10m" / "45m".
+ */
+export function formatDuration(startIso: string, endIso: string): string {
+  const mins = Math.max(
+    0,
+    Math.round((new Date(endIso).getTime() - new Date(startIso).getTime()) / 60_000),
+  );
+  const hours = Math.floor(mins / 60);
+  const minutes = mins % 60;
+  if (hours && minutes) return `${hours}h ${minutes}m`;
+  if (hours) return `${hours}h`;
+  return `${minutes}m`;
+}
+
+/**
+ * True when an ISO timestamp falls on the current calendar day.
+ */
+export function isToday(iso: string): boolean {
+  const d = new Date(iso);
+  const now = new Date();
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  );
+}
+
+/**
  * Returns the uppercase initials of a display name.
  *
  * "Alice Johnson" → "AJ"
