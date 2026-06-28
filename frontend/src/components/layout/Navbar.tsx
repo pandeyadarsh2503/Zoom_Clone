@@ -1,193 +1,230 @@
 "use client";
 
-import React, { useState } from "react";
-import { Settings, Bell, Search } from "lucide-react";
-import { Avatar } from "@/components/ui/Avatar";
+import React, { useState, useRef, useEffect } from "react";
+import { Settings, Bell, Search, HelpCircle, User as UserIcon, LogOut } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useUserStore } from "@/store/userStore";
 import { usersApi } from "@/lib/api/users";
+import { getInitials } from "@/lib/utils";
 
 export function Navbar() {
-  const { user, setUser } = useUserStore((state) => ({
-    user: state.user,
-    setUser: state.setUser,
-  }));
+  const user = useUserStore((state) => state.user);
+  const setUser = useUserStore((state) => state.setUser);
 
-  // Modals visibility state
+  // States
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
 
-  // Profile Edit fields
+  // Form fields
   const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Settings mock states (placeholders)
-  const [microphone, setMicrophone] = useState("Default Microphone");
-  const [camera, setCamera] = useState("Default Camera (720p)");
-  const [theme, setTheme] = useState("Dark Mode");
+  // Hardware states (mock)
+  const [microphone, setMicrophone] = useState("System Default Microphone");
+  const [camera, setCamera] = useState("Webcam (Integrated)");
 
-  const openProfileModal = () => {
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsProfileDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleEditProfile = () => {
     if (user) {
       setDisplayName(user.display_name);
       setAvatarUrl(user.avatar_url || "");
     }
-    setIsProfileOpen(true);
+    setIsProfileDropdownOpen(false);
+    setIsEditProfileOpen(true);
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!displayName.trim()) return;
 
-    setIsSavingProfile(true);
+    setIsSaving(true);
     try {
-      const updatedUser = await usersApi.updateMe({
+      const updated = await usersApi.updateMe({
         display_name: displayName,
         avatar_url: avatarUrl || undefined,
       });
-      setUser(updatedUser);
-      setIsProfileOpen(false);
+      setUser(updated);
+      setIsEditProfileOpen(false);
     } catch (err) {
       console.error("Failed to update profile:", err);
     } finally {
-      setIsSavingProfile(false);
+      setIsSaving(false);
     }
   };
 
+  const initials = user ? getInitials(user.display_name) : "DU";
+
   return (
-    <header className="flex h-16 items-center justify-between border-b border-white/5 bg-[#0d0d12]/80 px-6 backdrop-blur-sm">
-      {/* Left side — Search Bar */}
-      <div className="relative w-64 hidden md:block">
-        <span className="absolute inset-y-0 left-3 flex items-center text-slate-500">
+    <header className="flex h-16 items-center justify-between bg-white px-6 border-b border-gray-100 z-30">
+      {/* Centered / Left Search box */}
+      <div className="relative w-[340px] hidden sm:block">
+        <span className="absolute inset-y-0 left-3 flex items-center text-gray-400">
           <Search className="h-4 w-4" />
         </span>
         <input
           type="text"
-          placeholder="Search meetings, contacts..."
-          className="w-full rounded-lg bg-white/5 border border-white/10 pl-9 pr-4 py-1.5 text-xs text-slate-300 placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 transition-colors"
+          placeholder="Search"
+          className="w-full rounded-lg bg-[#f4f5f9] border-none pl-9 pr-14 py-1.5 text-xs text-gray-700 placeholder:text-gray-400 focus:outline-none focus:bg-gray-100 transition-all font-sans font-medium"
         />
+        {/* Cmd + F Badge Shortcut */}
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400 bg-white border border-gray-200 rounded px-1 tracking-wide pointer-events-none select-none">
+          ⌘F
+        </span>
       </div>
-      <div className="md:hidden" />
+      <div className="sm:hidden" />
 
-      {/* Right side — Notification, Settings, Profile */}
+      {/* Right control buttons */}
       <div className="flex items-center gap-4">
-        {/* Notifications Icon (Mock) */}
+        {/* Notifications Icon (Bell + Red Dot Indicator) */}
         <button
-          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-white/5 transition-colors"
+          className="p-1.5 rounded-lg text-gray-500 hover:text-gray-800 hover:bg-gray-50 transition-colors relative outline-none"
           aria-label="Notifications"
         >
-          <Bell className="h-4 w-4" />
+          <Bell className="h-5 w-5" />
+          <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
         </button>
 
-        {/* Settings Icon */}
+        {/* Help Circle Icon */}
         <button
-          onClick={() => setIsSettingsOpen(true)}
-          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-white/5 transition-colors"
-          aria-label="Settings"
+          className="p-1.5 rounded-lg text-gray-500 hover:text-gray-800 hover:bg-gray-50 transition-colors outline-none"
+          aria-label="Help"
         >
-          <Settings className="h-4 w-4" />
+          <HelpCircle className="h-5 w-5" />
         </button>
 
-        <div className="h-4 w-[1px] bg-white/10" />
-
-        {/* User Identity Profile Trigger */}
+        {/* Profile Avatar Trigger (Default Zoom Purple badge) */}
         {user ? (
-          <button
-            onClick={openProfileModal}
-            className="flex items-center gap-3 hover:opacity-85 text-left transition-opacity focus:outline-none"
-          >
-            <div className="hidden sm:block">
-              <p className="text-sm font-medium text-slate-200 leading-tight">
-                {user.display_name}
-              </p>
-              <p className="text-xs text-slate-500 leading-tight">Host user</p>
-            </div>
-            <Avatar src={user.avatar_url} name={user.display_name} size="sm" />
-          </button>
-        ) : (
-          /* Skeleton loader */
-          <div className="flex items-center gap-3 animate-pulse">
-            <div className="h-8 w-24 rounded-md bg-white/5 hidden sm:block" />
-            <div className="h-8 w-8 rounded-full bg-white/5" />
+          <div className="relative" ref={dropdownRef}>
+            <button
+              onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
+              className="flex items-center justify-center h-8 w-8 rounded-lg bg-[#7B46F2] hover:opacity-90 outline-none cursor-pointer shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
+              aria-expanded={isProfileDropdownOpen}
+              aria-haspopup="true"
+            >
+              <span className="text-[12px] font-bold text-white tracking-wider">
+                {initials}
+              </span>
+            </button>
+
+            {/* Profile Dropdown */}
+            {isProfileDropdownOpen && (
+              <div className="absolute right-0 mt-2 w-56 rounded-xl border border-gray-200 bg-white p-2 shadow-lg animate-fade-in z-50">
+                <div className="px-3 py-2 border-b border-gray-100 mb-1">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Profile</p>
+                  <p className="text-sm font-semibold text-gray-800 truncate mt-0.5">{user.display_name}</p>
+                  <p className="text-xs text-gray-500 truncate">default_user@zoom.clone</p>
+                </div>
+
+                <button
+                  onClick={handleEditProfile}
+                  className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors outline-none cursor-pointer"
+                >
+                  <UserIcon className="h-4 w-4 text-gray-500" />
+                  <span className="font-semibold text-xs">Edit Profile</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setIsProfileDropdownOpen(false);
+                    setIsSettingsOpen(true);
+                  }}
+                  className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors outline-none cursor-pointer"
+                >
+                  <Settings className="h-4 w-4 text-gray-500" />
+                  <span className="font-semibold text-xs">Preferences</span>
+                </button>
+
+                <div className="h-[1px] bg-gray-100 my-1" />
+
+                <button
+                  onClick={() => setIsProfileDropdownOpen(false)}
+                  className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-red-500 hover:text-red-700 hover:bg-red-50/50 transition-colors outline-none cursor-pointer"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span className="font-semibold text-xs">Logout</span>
+                </button>
+              </div>
+            )}
           </div>
+        ) : (
+          /* Profile Skeleton */
+          <div className="h-8 w-8 rounded-lg bg-gray-100 animate-pulse" />
         )}
       </div>
 
-      {/* Settings Modal (Placeholder content) */}
+      {/* Settings Modal */}
       <Modal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         title="Settings"
-        description="Configure your hardware and client preferences."
+        description="Preferences and hardware setup."
         size="md"
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">
-              Audio (Microphone)
+            <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
+              Audio input
             </label>
             <select
               value={microphone}
               onChange={(e) => setMicrophone(e.target.value)}
-              className="w-full text-sm rounded-lg bg-white/5 border border-white/10 text-slate-200 px-3 py-2 focus:outline-none focus:border-blue-500"
+              className="w-full text-sm rounded-lg bg-gray-50 border border-gray-200 text-gray-700 px-3 py-2 focus:outline-none focus:border-[#0E72ED]"
             >
-              <option value="Default Microphone" className="bg-[#14141c]">System Default Microphone</option>
-              <option value="Built-in Mic" className="bg-[#14141c]">Internal Microphone (Realtek)</option>
-              <option value="External Headset" className="bg-[#14141c]">USB Audio Interface / Headset</option>
+              <option value="System Default Microphone">System Default Microphone</option>
+              <option value="Built-in Microphone">Internal Mic (Realtek High Definition)</option>
             </select>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">
-              Video (Camera)
+            <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">
+              Video source
             </label>
             <select
               value={camera}
               onChange={(e) => setCamera(e.target.value)}
-              className="w-full text-sm rounded-lg bg-white/5 border border-white/10 text-slate-200 px-3 py-2 focus:outline-none focus:border-blue-500"
+              className="w-full text-sm rounded-lg bg-gray-50 border border-gray-200 text-gray-700 px-3 py-2 focus:outline-none focus:border-[#0E72ED]"
             >
-              <option value="Default Camera (720p)" className="bg-[#14141c]">Integrated HD Webcam (720p)</option>
-              <option value="High-Res Camera (1080p)" className="bg-[#14141c]">External Web Camera (1080p)</option>
-              <option value="Virtual Camera" className="bg-[#14141c]">OBS Virtual Camera</option>
+              <option value="Webcam (Integrated)">Webcam (Integrated Camera)</option>
+              <option value="Virtual Camera Source">OBS Virtual Camera</option>
             </select>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">
-              Theme & Interface
-            </label>
-            <select
-              value={theme}
-              onChange={(e) => setTheme(e.target.value)}
-              className="w-full text-sm rounded-lg bg-white/5 border border-white/10 text-slate-200 px-3 py-2 focus:outline-none focus:border-blue-500"
-            >
-              <option value="Dark Mode" className="bg-[#14141c]">Dark (Deep Obsidian)</option>
-              <option value="Light Mode" className="bg-[#14141c]">Light (Zoom Classic - Coming Soon)</option>
-            </select>
-          </div>
-
-          <div className="pt-4 border-t border-white/5 flex justify-end">
+          <div className="pt-4 border-t border-gray-100 flex justify-end">
             <Button variant="secondary" onClick={() => setIsSettingsOpen(false)}>
-              Close Settings
+              Done
             </Button>
           </div>
         </div>
       </Modal>
 
-      {/* Profile Modal */}
+      {/* Edit Profile Modal */}
       <Modal
-        isOpen={isProfileOpen}
-        onClose={() => setIsProfileOpen(false)}
+        isOpen={isEditProfileOpen}
+        onClose={() => setIsEditProfileOpen(false)}
         title="Profile Settings"
-        description="Update your default display properties."
+        description="Modify default user account information."
         size="md"
       >
         <form onSubmit={handleSaveProfile} className="space-y-4">
           <Input
             label="Display Name"
-            placeholder="e.g. Adarsh Pandey"
+            placeholder="e.g. Default User"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
             required
@@ -200,17 +237,17 @@ export function Navbar() {
             onChange={(e) => setAvatarUrl(e.target.value)}
           />
 
-          <div className="pt-4 border-t border-white/5 flex justify-end gap-2">
+          <div className="pt-4 border-t border-gray-100 flex justify-end gap-2">
             <Button
               type="button"
               variant="ghost"
-              onClick={() => setIsProfileOpen(false)}
-              disabled={isSavingProfile}
+              onClick={() => setIsEditProfileOpen(false)}
+              disabled={isSaving}
             >
               Cancel
             </Button>
-            <Button type="submit" loading={isSavingProfile}>
-              Save Changes
+            <Button type="submit" loading={isSaving}>
+              Save Profile
             </Button>
           </div>
         </form>

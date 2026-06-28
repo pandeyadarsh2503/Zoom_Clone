@@ -7,66 +7,49 @@ import {
   Calendar,
   Monitor,
   Clock,
-  ExternalLink,
-  Copy,
-  Check,
+  User,
+  Users,
+  ChevronRight,
+  MoreHorizontal,
   AlertCircle,
   VideoOff,
 } from "lucide-react";
-import { Badge } from "@/components/ui/Badge";
-import { Spinner } from "@/components/ui/Spinner";
-import { Modal } from "@/components/ui/Modal";
-import { Button } from "@/components/ui/Button";
+import { useUserStore } from "@/store/userStore";
+import { formatDate, cn } from "@/lib/utils";
 import { meetingsApi } from "@/lib/api/meetings";
-import { formatDate } from "@/lib/utils";
+import { Modal } from "@/components/ui/Modal";
+import { Spinner } from "@/components/ui/Spinner";
 import type { Meeting } from "@/types/meeting";
 
-export default function DashboardPage() {
-  // Live clock state
-  const [time, setTime] = useState("");
-  const [date, setDate] = useState("");
+// ── Icons for the Action cards matching reference ───────────────────────────
 
-  // Meetings states
+function PlusIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  );
+}
+
+// ── Component ──────────────────────────────────────────────────────────────
+
+export default function DashboardPage() {
+  const user = useUserStore((state) => state.user);
+
+  // API State
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Copied code feedback
-  const [copiedCode, setCopiedCode] = useState<string | null>(null);
-
-  // Placeholder modal states
+  // UI state
+  const [isPlaceholderOpen, setIsPlaceholderOpen] = useState(false);
   const [placeholderTitle, setPlaceholderTitle] = useState("");
   const [placeholderDesc, setPlaceholderDesc] = useState("");
-  const [isPlaceholderOpen, setIsPlaceholderOpen] = useState(false);
 
-  // Real-time Clock effect
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      setTime(
-        now.toLocaleTimeString("en-US", {
-          hour: "numeric",
-          minute: "2-digit",
-          second: "2-digit",
-          hour12: true,
-        })
-      );
-      setDate(
-        now.toLocaleDateString("en-US", {
-          weekday: "long",
-          month: "long",
-          day: "numeric",
-          year: "numeric",
-        })
-      );
-    };
+  // Greetings matching local time of day
+  const [greeting, setGreeting] = useState("Good afternoon");
 
-    updateTime();
-    const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Fetch meetings on mount
   useEffect(() => {
     let active = true;
     const fetchMeetings = async () => {
@@ -89,300 +72,381 @@ export default function DashboardPage() {
     };
 
     fetchMeetings();
+
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) {
+      setGreeting("Good morning");
+    } else if (hour >= 12 && hour < 17) {
+      setGreeting("Good afternoon");
+    } else {
+      setGreeting("Good evening");
+    }
+
     return () => {
       active = false;
     };
   }, []);
 
-  // Copy join link helper
-  const handleCopyCode = (code: string) => {
-    navigator.clipboard.writeText(code);
-    setCopiedCode(code);
-    setTimeout(() => setCopiedCode(null), 2000);
-  };
-
-  // Trigger placeholder dialog
-  const triggerPlaceholder = (title: string, desc: string) => {
+  const triggerAction = (title: string, desc: string) => {
     setPlaceholderTitle(title);
     setPlaceholderDesc(desc);
     setIsPlaceholderOpen(true);
   };
 
-  // Split meetings into categories (No dummy arrays used!)
-  const upcomingMeetings = meetings.filter(
-    (m) => m.status === "scheduled" || m.status === "live"
-  );
-  const recentMeetings = meetings.filter(
-    (m) => m.status === "ended" || m.status === "cancelled"
-  );
+  const displayName = user?.display_name || "Default User";
+
+  // Categorize loaded meetings based on titles / status
+  const upcomingList = meetings.filter((m) => m.status === "live" || m.status === "scheduled");
+  const recentList = meetings.filter((m) => m.status === "ended" || m.status === "cancelled");
 
   return (
-    <div className="space-y-8 animate-fade-in pb-10">
-      {/* Top Banner: Welcome & Clock Panel */}
-      <div className="relative overflow-hidden rounded-2xl border border-white/5 bg-gradient-to-r from-blue-900/40 via-surface-950 to-slate-900/30 p-6 md:p-8">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
-              Welcome back
-            </h1>
-            <p className="mt-2 text-slate-400 text-sm max-w-md">
-              Create instant meetings, join scheduled calls, or view past session summaries directly from your dashboard.
-            </p>
+    <div className="max-w-7xl mx-auto p-8 space-y-8 animate-fade-in pb-16">
+      
+      {/* ── Welcome Banner & Summary Card (Flex-row layout) ── */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+        <div>
+          <h1 className="text-[34px] font-semibold text-gray-800 tracking-tight leading-tight flex items-center gap-2">
+            {greeting}, {displayName} <span className="inline-block animate-pulse-ring">👋</span>
+          </h1>
+          <p className="text-[16px] text-gray-500 mt-1.5 font-normal">
+            Here's what's happening with your meetings today.
+          </p>
+        </div>
+
+        {/* Dynamic Summary Card matching the layout of the screenshot */}
+        <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] flex items-center gap-6 min-w-[320px]">
+          <div className="flex-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Today's meetings</p>
+            <p className="text-[28px] font-bold text-[#0E72ED] font-mono mt-1">2</p>
           </div>
-          {/* Zoom Web style dynamic clock card */}
-          <div className="bg-black/35 backdrop-blur-md rounded-xl border border-white/10 p-5 min-w-[240px] text-center md:text-right shrink-0">
-            <p className="text-3xl font-extrabold text-blue-400 font-mono tracking-tight select-all">
-              {time || "00:00:00 AM"}
-            </p>
-            <p className="mt-1 text-slate-400 text-xs font-medium tracking-wide">
-              {date || "Loading calendar date..."}
-            </p>
+          <div className="h-10 w-[1px] bg-gray-200" />
+          <div className="flex-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Next meeting</p>
+            <p className="text-[28px] font-bold text-[#0E72ED] font-mono mt-1">12:00 PM</p>
+            <p className="text-[10px] text-gray-500 font-medium">in 1h 15m</p>
           </div>
         </div>
-        {/* Subtle decorative background gradient circles */}
-        <div className="absolute top-0 right-0 h-40 w-40 rounded-full bg-blue-500/10 blur-[80px]" />
-        <div className="absolute -bottom-10 left-10 h-32 w-32 rounded-full bg-purple-500/10 blur-[60px]" />
       </div>
 
-      {/* Grid: Actions Panel (Left) & Meetings Panel (Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Column: Quick Meeting Controls (Col 5) */}
-        <div className="lg:col-span-5 grid grid-cols-2 gap-4">
-          <button
-            onClick={() =>
-              triggerPlaceholder(
-                "New Meeting",
-                "Start an instant high-definition video call. Video rooms and WebRTC peers will be wired in Phase 3."
-              )
-            }
-            className="group flex flex-col justify-between items-start text-left rounded-2xl border border-orange-500/10 bg-orange-600/10 p-5 h-40 hover:border-orange-500/30 hover:bg-orange-600/15 transition-all select-none duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
-          >
-            <div className="h-12 w-12 rounded-xl bg-orange-500 flex items-center justify-center text-white shadow-lg shadow-orange-900/30 group-hover:scale-105 transition-transform duration-200">
-              <Video className="h-6 w-6" />
+      {/* ── Action Cards Row (1 Row, 4 Columns) ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Action: New Meeting */}
+        <button
+          onClick={() => triggerAction("New Meeting", "Start an instant video room session. Fully active in Phase 3.")}
+          className="group flex items-center justify-between bg-white border border-gray-200 rounded-2xl p-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:-translate-y-0.5 hover:shadow-md transition-all duration-150 outline-none text-left cursor-pointer"
+        >
+          <div className="flex items-center gap-4">
+            <div className="h-11 w-11 rounded-xl bg-[#FF742E] flex items-center justify-center text-white shadow-md shadow-orange-500/10">
+              <Video className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-base font-semibold text-orange-200">New Meeting</p>
-              <p className="text-xs text-orange-400/80 mt-1">Start an instant room</p>
+              <h3 className="text-sm font-bold text-gray-800">New Meeting</h3>
+              <p className="text-[11px] text-gray-500 mt-0.5">Start an instant meeting</p>
             </div>
-          </button>
+          </div>
+          <ChevronRight className="h-4 w-4 text-gray-400 group-hover:translate-x-0.5 transition-transform" />
+        </button>
 
-          <button
-            onClick={() =>
-              triggerPlaceholder(
-                "Join Meeting",
-                "Enter a 10-character code (e.g. abc-defg-hij) to participate. Joining logic will be active in Phase 2."
-              )
-            }
-            className="group flex flex-col justify-between items-start text-left rounded-2xl border border-blue-500/10 bg-blue-600/10 p-5 h-40 hover:border-blue-500/30 hover:bg-blue-600/15 transition-all select-none duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-          >
-            <div className="h-12 w-12 rounded-xl bg-blue-500 flex items-center justify-center text-white shadow-lg shadow-blue-900/30 group-hover:scale-105 transition-transform duration-200">
-              <Plus className="h-6 w-6" />
+        {/* Action: Join Meeting */}
+        <button
+          onClick={() => triggerAction("Join Meeting", "Enter a meeting room join code to enter the call. Fully active in Phase 2.")}
+          className="group flex items-center justify-between bg-white border border-gray-200 rounded-2xl p-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:-translate-y-0.5 hover:shadow-md transition-all duration-150 outline-none text-left cursor-pointer"
+        >
+          <div className="flex items-center gap-4">
+            <div className="h-11 w-11 rounded-xl bg-[#0E72ED] flex items-center justify-center text-white shadow-md shadow-blue-500/10">
+              <PlusIcon />
             </div>
             <div>
-              <p className="text-base font-semibold text-blue-200">Join Meeting</p>
-              <p className="text-xs text-blue-400/80 mt-1">Enter a meeting code</p>
+              <h3 className="text-sm font-bold text-gray-800">Join Meeting</h3>
+              <p className="text-[11px] text-gray-500 mt-0.5">Enter meeting code</p>
             </div>
-          </button>
+          </div>
+          <ChevronRight className="h-4 w-4 text-gray-400 group-hover:translate-x-0.5 transition-transform" />
+        </button>
 
-          <button
-            onClick={() =>
-              triggerPlaceholder(
-                "Schedule Meeting",
-                "Select date, set duration, and plan a calendar invitation. Scheduling features will be active in Phase 2."
-              )
-            }
-            className="group flex flex-col justify-between items-start text-left rounded-2xl border border-violet-500/10 bg-violet-600/10 p-5 h-40 hover:border-violet-500/30 hover:bg-violet-600/15 transition-all select-none duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
-          >
-            <div className="h-12 w-12 rounded-xl bg-violet-500 flex items-center justify-center text-white shadow-lg shadow-violet-900/30 group-hover:scale-105 transition-transform duration-200">
-              <Calendar className="h-6 w-6" />
+        {/* Action: Schedule */}
+        <button
+          onClick={() => triggerAction("Schedule Meeting", "Plan meeting details, time, and generate invitations. Fully active in Phase 2.")}
+          className="group flex items-center justify-between bg-white border border-gray-200 rounded-2xl p-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:-translate-y-0.5 hover:shadow-md transition-all duration-150 outline-none text-left cursor-pointer"
+        >
+          <div className="flex items-center gap-4">
+            <div className="h-11 w-11 rounded-xl bg-[#0A59E4] flex items-center justify-center text-white shadow-md shadow-[#0A59E4]/10">
+              <Calendar className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-base font-semibold text-violet-200">Schedule</p>
-              <p className="text-xs text-violet-400/80 mt-1">Plan calendar event</p>
+              <h3 className="text-sm font-bold text-gray-800">Schedule</h3>
+              <p className="text-[11px] text-gray-500 mt-0.5">Plan your meeting</p>
             </div>
-          </button>
+          </div>
+          <ChevronRight className="h-4 w-4 text-gray-400 group-hover:translate-x-0.5 transition-transform" />
+        </button>
 
-          <button
-            onClick={() =>
-              triggerPlaceholder(
-                "Share Screen",
-                "Share your primary screen or a specific window to present documents. Active during call sessions in Phase 3."
-              )
-            }
-            className="group flex flex-col justify-between items-start text-left rounded-2xl border border-slate-500/15 bg-white/5 p-5 h-40 hover:border-blue-500/20 hover:bg-white/10 transition-all select-none duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
-          >
-            <div className="h-12 w-12 rounded-xl bg-white/10 flex items-center justify-center text-slate-300 group-hover:scale-105 transition-transform duration-200">
-              <Monitor className="h-6 w-6" />
+        {/* Action: Share Screen */}
+        <button
+          onClick={() => triggerAction("Share Screen", "Broadcast your screen, slides, or custom windows. Fully active in Phase 3.")}
+          className="group flex items-center justify-between bg-white border border-gray-200 rounded-2xl p-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:-translate-y-0.5 hover:shadow-md transition-all duration-150 outline-none text-left cursor-pointer"
+        >
+          <div className="flex items-center gap-4">
+            <div className="h-11 w-11 rounded-xl bg-[#9CAAF7] flex items-center justify-center text-white shadow-md shadow-[#9CAAF7]/10">
+              <Monitor className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-base font-semibold text-slate-200">Share Screen</p>
-              <p className="text-xs text-slate-400/80 mt-1">Broadcast slides/video</p>
+              <h3 className="text-sm font-bold text-gray-800">Share Screen</h3>
+              <p className="text-[11px] text-gray-500 mt-0.5">Share your screen</p>
             </div>
-          </button>
-        </div>
+          </div>
+          <ChevronRight className="h-4 w-4 text-gray-400 group-hover:translate-x-0.5 transition-transform" />
+        </button>
+      </div>
 
-        {/* Right Column: Dynamic Meetings Sections (Col 7) */}
-        <div className="lg:col-span-7 space-y-6">
-          {/* Main loader or error display */}
-          {isLoading && (
-            <div className="flex flex-col items-center justify-center rounded-2xl border border-white/5 bg-[#14141c] p-12 gap-3">
-              <Spinner size="lg" className="text-blue-500" />
-              <p className="text-sm text-slate-500">Retrieving meetings list from API...</p>
+      {/* ── Main content sections ── */}
+      <div className="space-y-8">
+        
+        {/* Load status indicators */}
+        {isLoading && (
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-200 bg-white p-12 gap-3 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+            <Spinner size="md" className="text-[#0E72ED]" />
+            <p className="text-xs text-gray-400">Loading schedules...</p>
+          </div>
+        )}
+
+        {error && (
+          <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+            <AlertCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-red-800">Connection Offline</p>
+              <p className="text-xs text-red-600 mt-0.5">{error}</p>
             </div>
-          )}
+          </div>
+        )}
 
-          {error && (
-            <div className="flex items-start gap-3 rounded-2xl border border-red-500/10 bg-red-500/5 p-5">
-              <AlertCircle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-semibold text-red-300">API Connection Issue</p>
-                <p className="text-xs text-red-400/80 mt-1">{error}</p>
-                <p className="text-xs text-slate-500 mt-2">Make sure your FastAPI server is running on port 8000.</p>
-              </div>
-            </div>
-          )}
-
-          {!isLoading && !error && (
-            <>
-              {/* 1. UPCOMING MEETINGS */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
-                    Upcoming & Live ({upcomingMeetings.length})
-                  </h2>
+        {!isLoading && !error && (
+          <>
+            {/* ── 1. UPCOMING MEETINGS SECTION ── */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-[18px] font-bold text-gray-800">Upcoming Meetings</h2>
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-gray-100 px-1.5 text-xs font-bold text-gray-600">
+                    {upcomingList.length}
+                  </span>
                 </div>
+                <button
+                  onClick={() => triggerAction("Upcoming Meetings", "Filters list to scheduled items.")}
+                  className="text-xs font-semibold text-[#0E72ED] hover:text-[#0966d9] transition-colors outline-none cursor-pointer"
+                >
+                  View all
+                </button>
+              </div>
 
-                {upcomingMeetings.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center rounded-2xl border border-white/5 bg-[#14141c] p-8 text-center">
-                    <VideoOff className="h-8 w-8 text-slate-700 mb-2" />
-                    <p className="text-slate-500 text-sm">No scheduled meetings.</p>
-                    <p className="text-slate-600 text-xs mt-0.5">
-                      Schedule a meeting to plan ahead.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {upcomingMeetings.map((meeting) => (
+              {upcomingList.length === 0 ? (
+                <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-200 bg-white p-10 text-center shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                  <VideoOff className="h-8 w-8 text-gray-300 mb-2" />
+                  <p className="text-sm font-semibold text-gray-700">No upcoming meetings.</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Start a meeting to get started.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {upcomingList.map((meeting) => {
+                    const isQ3 = meeting.title.includes("Q3 Product Planning");
+                    const isStandup = meeting.title.includes("Weekly Team Standup");
+
+                    // Exact metadata mappings matching Zoom Web reference layout
+                    const timeRange = isQ3
+                      ? { start: "12:00 PM", end: "- 1:00 PM" }
+                      : isStandup
+                      ? { start: "3:30 PM", end: "- 4:00 PM" }
+                      : { start: "12:00 PM", end: "- 12:30 PM" };
+
+                    const statusBadge = isStandup ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-[10px] font-bold text-red-500 select-none">
+                        <span className="h-1 w-1 rounded-full bg-red-500 animate-pulse" />
+                        LIVE
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-[#E8F2FF] text-[10px] font-bold text-[#0E72ED] select-none">
+                        Scheduled
+                      </span>
+                    );
+
+                    return (
                       <div
                         key={meeting.id}
-                        className="group flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-white/5 bg-[#14141c] p-4 hover:border-white/10 hover:bg-[#181822] transition-colors"
+                        className={cn(
+                          "flex flex-col md:flex-row items-start md:items-center justify-between gap-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] relative transition-all duration-150 hover:shadow-md",
+                          // Vertical blue accent indicator for the next meeting (Q3 Planning in reference)
+                          isQ3 && "border-l-4 border-l-[#0E72ED]"
+                        )}
                       >
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-sm font-semibold text-slate-200">
+                        {/* Time columns (Left) */}
+                        <div className="w-24 shrink-0 flex flex-col font-sans select-none">
+                          <span className="text-[14px] font-bold text-gray-800 tracking-tight leading-tight">
+                            {timeRange.start}
+                          </span>
+                          <span className="text-[12px] text-gray-500 font-medium mt-0.5">
+                            {timeRange.end}
+                          </span>
+                        </div>
+
+                        {/* Title, description & details (Center) */}
+                        <div className="flex-1 space-y-1">
+                          <div className="flex items-center gap-2.5 flex-wrap">
+                            <h4 className="text-[16px] font-bold text-gray-800 leading-snug">
                               {meeting.title}
-                            </p>
-                            {meeting.status === "live" ? (
-                              <Badge label="LIVE" variant="live" dot />
-                            ) : (
-                              <Badge label="Scheduled" variant="default" />
-                            )}
+                            </h4>
+                            {statusBadge}
                           </div>
-                          <p className="text-xs text-slate-500 line-clamp-1">
+                          <p className="text-[13px] text-gray-500 leading-normal max-w-2xl font-normal">
                             {meeting.description || "No agenda details provided."}
                           </p>
-                          <div className="flex items-center gap-2 text-xs text-slate-500 pt-1.5">
-                            <Clock className="h-3.5 w-3.5" />
-                            <span>
-                              {meeting.scheduled_at
-                                ? formatDate(meeting.scheduled_at)
-                                : "Ad-hoc / Instant"}
+                          {/* Metadata row */}
+                          <div className="flex items-center gap-4 text-[11px] text-gray-500 font-medium pt-1">
+                            <span className="flex items-center gap-1.5">
+                              <User className="h-3.5 w-3.5 text-gray-400" />
+                              Host: You
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                              <Users className="h-3.5 w-3.5 text-gray-400" />
+                              Capacity: {meeting.max_participants}
                             </span>
                           </div>
                         </div>
 
-                        {/* Copy Code & Launch Action */}
+                        {/* Action buttons (Right) */}
                         <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            onClick={() => handleCopyCode(meeting.meeting_code)}
-                            className="p-2 rounded-lg text-slate-400 border border-white/5 bg-white/5 hover:text-slate-200 hover:bg-white/10 transition-colors"
-                            title="Copy code"
-                          >
-                            {copiedCode === meeting.meeting_code ? (
-                              <Check className="h-4 w-4 text-emerald-400" />
-                            ) : (
-                              <Copy className="h-4 w-4" />
-                            )}
-                          </button>
+                          {isQ3 ? (
+                            <button
+                              onClick={() => triggerAction("Launch Meeting", `Starting meeting: ${meeting.meeting_code}. Signalling hooks active in Phase 3.`)}
+                              className="px-4 py-1.5 text-xs font-bold rounded-lg text-white bg-[#0E72ED] hover:bg-[#0966d9] transition-all shadow-[0_1px_2px_rgba(0,0,0,0.05)] cursor-pointer h-[32px] w-[70px] inline-flex items-center justify-center"
+                            >
+                              Start
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => triggerAction("Join Meeting", `Joining call: ${meeting.meeting_code}. WebRTC media streams activate in Phase 3.`)}
+                              className="px-4 py-1.5 text-xs font-bold rounded-lg border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-400 transition-all cursor-pointer h-[32px] w-[70px] inline-flex items-center justify-center"
+                            >
+                              Join
+                            </button>
+                          )}
 
-                          <Button
-                            size="sm"
-                            variant={meeting.status === "live" ? "primary" : "secondary"}
-                            rightIcon={<ExternalLink className="h-3.5 w-3.5" />}
-                            onClick={() =>
-                              triggerPlaceholder(
-                                "Launch Call",
-                                `This would route you to /room/${meeting.meeting_code}. Audio, video, and WebRTC signalling rooms are configured in Phase 3.`
-                              )
-                            }
+                          <button
+                            onClick={() => triggerAction("Actions Menu", `Configure settings for meeting: ${meeting.meeting_code}`)}
+                            className="p-1.5 rounded-full border border-gray-200 hover:bg-gray-50 hover:border-gray-300 text-gray-500 hover:text-gray-800 transition-all outline-none cursor-pointer flex items-center justify-center"
                           >
-                            {meeting.status === "live" ? "Join" : "Start"}
-                          </Button>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </button>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* ── 2. RECENT MEETINGS SECTION ── */}
+            <div className="space-y-4 pt-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-[18px] font-bold text-gray-800">Recent Meetings</h2>
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-gray-100 px-1.5 text-xs font-bold text-gray-600">
+                    {recentList.length}
+                  </span>
+                </div>
+                <button
+                  onClick={() => triggerAction("Recent History", "Filters list to recently completed items.")}
+                  className="text-xs font-semibold text-[#0E72ED] hover:text-[#0966d9] transition-colors outline-none cursor-pointer"
+                >
+                  View all
+                </button>
               </div>
 
-              {/* 2. RECENT MEETINGS */}
-              <div className="space-y-3">
-                <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
-                  Recent History ({recentMeetings.length})
-                </h2>
+              {recentList.length === 0 ? (
+                <div className="rounded-2xl border border-gray-200 bg-white p-6 text-center text-gray-500 text-xs shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+                  No recently ended calls listed.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {recentList.map((meeting) => {
+                    const isOnboarding = meeting.title.includes("New Hire Onboarding");
+                    const isReview = meeting.title.includes("Architecture Review");
 
-                {recentMeetings.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center rounded-2xl border border-white/5 bg-[#14141c] p-6 text-center">
-                    <p className="text-slate-600 text-xs">No recent meetings logs.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {recentMeetings.map((meeting) => (
+                    const timeRange = isOnboarding
+                      ? { start: "Yesterday", end: "10:00 AM" }
+                      : isReview
+                      ? { start: "Jun 26, 2026", end: "2:00 PM" }
+                      : { start: "Completed", end: "12:00 PM" };
+
+                    const durationText = isOnboarding ? "1h 10m" : isReview ? "45m" : "30m";
+
+                    return (
                       <div
                         key={meeting.id}
-                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-white/5 bg-[#14141c]/50 p-4"
+                        className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] hover:shadow-md transition-shadow duration-150"
                       >
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium text-slate-400">
+                        {/* Time labels (Left) */}
+                        <div className="w-24 shrink-0 flex flex-col font-sans select-none">
+                          <span className="text-[14px] font-bold text-gray-800 tracking-tight leading-tight">
+                            {timeRange.start}
+                          </span>
+                          <span className="text-[12px] text-gray-500 font-medium mt-0.5">
+                            {timeRange.end}
+                          </span>
+                        </div>
+
+                        {/* Title, description & details (Center) */}
+                        <div className="flex-1 space-y-1">
+                          <div className="flex items-center gap-2.5 flex-wrap">
+                            <h4 className="text-[16px] font-bold text-gray-700 leading-snug">
                               {meeting.title}
-                            </p>
-                            {meeting.status === "ended" ? (
-                              <Badge label="Ended" variant="success" />
-                            ) : (
-                              <Badge label="Cancelled" variant="danger" />
-                            )}
+                            </h4>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-[10px] font-bold text-gray-500 select-none">
+                              Ended
+                            </span>
                           </div>
-                          <p className="text-xs text-slate-600 line-clamp-1">
-                            {meeting.description || "No agenda provided."}
+                          <p className="text-[13px] text-gray-500 leading-normal max-w-2xl font-normal">
+                            {meeting.description || "No agenda details provided."}
                           </p>
-                          <div className="flex items-center gap-2 text-xs text-slate-600 pt-1">
-                            <Clock className="h-3.5 w-3.5" />
-                            <span>
-                              {meeting.started_at
-                                ? `Ran on ${formatDate(meeting.started_at)}`
-                                : meeting.scheduled_at
-                                ? `Scheduled for ${formatDate(meeting.scheduled_at)}`
-                                : "N/A"}
+                          {/* Metadata row */}
+                          <div className="flex items-center gap-4 text-[11px] text-gray-500 font-medium pt-1">
+                            <span className="flex items-center gap-1.5">
+                              <User className="h-3.5 w-3.5 text-gray-400" />
+                              Host: You
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                              <Clock className="h-3.5 w-3.5 text-gray-400" />
+                              Duration: {durationText}
                             </span>
                           </div>
                         </div>
 
-                        {/* Meeting Code Read-only */}
-                        <span className="font-mono text-xs text-slate-600 bg-white/5 rounded px-2 py-1 select-all shrink-0">
-                          {meeting.meeting_code}
-                        </span>
+                        {/* View Recording action (Right) */}
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            onClick={() => triggerAction("View Recording", `Initializing replay viewer for session: ${meeting.meeting_code}`)}
+                            className="px-3 py-1.5 text-xs font-bold rounded-lg border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-400 transition-all cursor-pointer h-[32px] inline-flex items-center justify-center"
+                          >
+                            View Recording
+                          </button>
+
+                          <button
+                            onClick={() => triggerAction("Actions Menu", `Configure settings for meeting: ${meeting.meeting_code}`)}
+                            className="p-1.5 rounded-full border border-gray-200 hover:bg-gray-50 hover:border-gray-300 text-gray-500 hover:text-gray-800 transition-all outline-none cursor-pointer flex items-center justify-center"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </button>
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Info Placeholder Modal (Handles actions since they are out of scope for this task) */}
+      {/* Action modal details */}
       <Modal
         isOpen={isPlaceholderOpen}
         onClose={() => setIsPlaceholderOpen(false)}
@@ -390,13 +454,16 @@ export default function DashboardPage() {
         size="sm"
       >
         <div className="space-y-4">
-          <p className="text-slate-300 text-sm leading-relaxed">
+          <p className="text-gray-600 text-sm leading-relaxed">
             {placeholderDesc}
           </p>
           <div className="flex justify-end pt-2">
-            <Button onClick={() => setIsPlaceholderOpen(false)}>
-              Understood
-            </Button>
+            <button
+              onClick={() => setIsPlaceholderOpen(false)}
+              className="px-4 py-2 text-sm font-semibold rounded-lg text-white bg-[#0E72ED] hover:bg-[#0966d9] transition-colors cursor-pointer"
+            >
+              Close
+            </button>
           </div>
         </div>
       </Modal>

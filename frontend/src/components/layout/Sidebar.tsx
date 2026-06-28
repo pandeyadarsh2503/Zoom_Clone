@@ -3,111 +3,138 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { Home, Video, Calendar, Users, Settings, Sparkles } from "lucide-react";
 
-// ── Nav item type ──────────────────────────────────────────────────────────
+// ── Nav items definition matching the Zoom reference ──────────────────────────
 
-interface NavItem {
-  label: string;
-  href: string;
-  icon: React.ReactNode;
-}
-
-// ── SVG Icons ──────────────────────────────────────────────────────────────
-
-function HomeIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-      <polyline points="9 22 9 12 15 12 15 22" />
-    </svg>
-  );
-}
-
-function VideoIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <polygon points="23 7 16 12 23 17 23 7" />
-      <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-    </svg>
-  );
-}
-
-function RecordingIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="12" cy="12" r="10" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  );
-}
-
-function LogoIcon() {
-  return (
-    <svg viewBox="0 0 32 32" fill="none" className="h-7 w-7" aria-hidden>
-      <rect width="32" height="32" rx="8" fill="#2563eb" />
-      <polygon points="22,10 14,16 22,22" fill="white" opacity="0.9" />
-      <rect x="8" y="10" width="9" height="12" rx="2" fill="white" />
-    </svg>
-  );
-}
-
-// ── Nav items ──────────────────────────────────────────────────────────────
-
-const NAV_ITEMS: NavItem[] = [
-  { label: "Dashboard", href: "/", icon: <HomeIcon className="h-5 w-5" /> },
-  { label: "Meetings", href: "/meetings", icon: <VideoIcon className="h-5 w-5" /> },
-  { label: "Recordings", href: "/recordings", icon: <RecordingIcon className="h-5 w-5" /> },
+const NAV_ITEMS = [
+  { label: "Home", href: "/", icon: Home },
+  { label: "Meetings", href: "/meetings", icon: Video },
+  { label: "Calendar", href: "/calendar", icon: Calendar },
+  { label: "Contacts", href: "/contacts", icon: Users },
+  { label: "Settings", href: "/settings", icon: Settings },
 ];
 
-// ── Component ──────────────────────────────────────────────────────────────
+function ZoomLogo() {
+  return (
+    <div className="flex items-center gap-1.5 select-none">
+      {/* Zoom Camera SVG Icon */}
+      <svg className="h-6 w-6 text-[#0E72ED]" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="36" height="36" rx="8" fill="#0E72ED" />
+        <path d="M25 15.5L20.5 19V15C20.5 13.9 19.6 13 18.5 13H11.5C10.4 13 9.5 13.9 9.5 15V21C9.5 22.1 10.4 23 11.5 23H18.5C19.6 23 20.5 22.1 20.5 21V17L25 20.5V15.5Z" fill="white" />
+      </svg>
+      {/* Zoom Wordmark */}
+      <span className="text-[21px] font-bold tracking-tight text-[#0E72ED] font-sans">
+        zoom
+      </span>
+    </div>
+  );
+}
 
 export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="flex h-full w-60 shrink-0 flex-col border-r border-white/5 bg-[#0d0d12]">
-      {/* Logo */}
-      <div className="flex h-16 items-center gap-3 px-5 border-b border-white/5">
-        <LogoIcon />
-        <span className="text-base font-semibold text-white tracking-tight">
-          Zoom Clone
-        </span>
+    <aside className="hidden md:flex flex-col h-full bg-white border-r border-gray-200 shrink-0 w-[72px] lg:w-60 transition-all duration-150 justify-between">
+      <div className="flex flex-col">
+        {/* Logo Section */}
+        <div className="flex h-16 items-center px-4 lg:px-6 border-b border-gray-100 gap-3 justify-center lg:justify-start">
+          <Link href="/">
+            <ZoomLogo />
+          </Link>
+        </div>
+
+        {/* Sidebar Nav Items */}
+        <nav className="flex flex-col gap-1 p-3 pt-4" aria-label="Main navigation">
+          {NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const isActive =
+              item.href === "/"
+                ? pathname === "/"
+                : pathname.startsWith(item.href);
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex items-center rounded-lg transition-all duration-150 outline-none",
+                  "h-10 justify-center lg:justify-start px-3 gap-3",
+                  isActive
+                    ? "bg-[#E8F2FF] text-[#0E72ED]"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                )}
+                aria-current={isActive ? "page" : undefined}
+              >
+                <Icon className={cn("h-5 w-5 shrink-0", isActive ? "text-[#0E72ED]" : "text-gray-500")} />
+                <span className="text-[14px] font-semibold hidden lg:block">
+                  {item.label}
+                </span>
+              </Link>
+            );
+          })}
+        </nav>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex flex-1 flex-col gap-1 p-3 pt-4" aria-label="Main navigation">
-        {NAV_ITEMS.map((item) => {
-          const isActive =
-            item.href === "/"
-              ? pathname === "/"
-              : pathname.startsWith(item.href);
+      {/* Upgrade Callout Card & Version Info */}
+      <div className="p-4 flex flex-col gap-3">
+        {/* Promo card shown only on full layout */}
+        <div className="hidden lg:flex flex-col p-4 bg-gradient-to-br from-white to-blue-50/20 border border-gray-200 rounded-xl shadow-[0_1px_3px_rgba(0,0,0,0.04)] gap-2">
+          <div className="h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center text-[#0E72ED]">
+            <Sparkles className="h-4 w-4" />
+          </div>
+          <div className="space-y-0.5">
+            <h4 className="text-xs font-bold text-gray-800">Upgrade your plan</h4>
+            <p className="text-[10px] text-gray-500 leading-normal">
+              Get more meetings, cloud storage, and advanced features.
+            </p>
+          </div>
+          <button
+            onClick={() => window.open("#upgrade", "_self")}
+            className="text-[11px] font-bold text-[#0E72ED] hover:text-[#0966d9] text-left transition-colors outline-none cursor-pointer mt-1"
+          >
+            Upgrade now
+          </button>
+        </div>
 
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5",
-                "text-sm font-medium transition-colors duration-150",
-                isActive
-                  ? "bg-blue-600/20 text-blue-400"
-                  : "text-slate-500 hover:text-slate-200 hover:bg-white/5",
-              )}
-              aria-current={isActive ? "page" : undefined}
-            >
-              {item.icon}
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* Footer */}
-      <div className="border-t border-white/5 p-3">
-        <p className="px-3 text-xs text-slate-600">
-          v{process.env.NEXT_PUBLIC_APP_VERSION ?? "0.1.0"}
-        </p>
+        <div className="flex justify-center lg:justify-start lg:px-2 select-none">
+          <p className="text-[10px] text-gray-400 font-medium">
+            v{process.env.NEXT_PUBLIC_APP_VERSION ?? "0.1.0"}
+          </p>
+        </div>
       </div>
     </aside>
+  );
+}
+
+export function BottomNav() {
+  const pathname = usePathname();
+
+  return (
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 h-14 bg-white border-t border-gray-200 flex items-center justify-around px-4 z-40 shadow-[0_-1px_3px_rgba(0,0,0,0.05)]">
+      {NAV_ITEMS.map((item) => {
+        const Icon = item.icon;
+        const isActive =
+          item.href === "/"
+            ? pathname === "/"
+            : pathname.startsWith(item.href);
+
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={cn(
+              "flex flex-col items-center justify-center gap-0.5 w-14 transition-colors",
+              isActive ? "text-[#0E72ED]" : "text-gray-500"
+            )}
+          >
+            <Icon className="h-4 w-4 shrink-0" />
+            <span className="text-[10px] font-semibold">
+              {item.label}
+            </span>
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
