@@ -43,6 +43,8 @@ import {
   Presentation,
   BarChart3,
   Grid2x2,
+  Pencil,
+  ScreenShare,
 } from "lucide-react";
 import { useUserStore } from "@/store/userStore";
 import { useRoomStore } from "@/store/roomStore";
@@ -63,7 +65,7 @@ function accentFor(id: string): string {
   return REMOTE_ACCENTS[h % REMOTE_ACCENTS.length];
 }
 
-interface RemotePeer { id: string; name: string; accent: string; muted: boolean; videoOff: boolean; hand: boolean }
+interface RemotePeer { id: string; name: string; accent: string; muted: boolean; videoOff: boolean; hand: boolean; screenSharing: boolean }
 
 // ── Hardcoded peers (UI placeholders — not from any backend) ────────────────
 interface Peer {
@@ -273,14 +275,14 @@ function PanelShell({ title, onClose, children, footer }: { title: string; onClo
 
 interface ChatMsg { id: number; name: string; text: string; mine: boolean; accent: string }
 
-function ChatPanel({ onClose, messages, onSend }: { onClose: () => void; messages: ChatMsg[]; onSend: (t: string) => void }) {
+function ChatPanel({ onClose, messages, onSend, disabled }: { onClose: () => void; messages: ChatMsg[]; onSend: (t: string) => void; disabled?: boolean }) {
   const [text, setText] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length]);
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const t = text.trim();
-    if (!t) return;
+    if (!t || disabled) return;
     onSend(t);
     setText("");
   };
@@ -289,20 +291,28 @@ function ChatPanel({ onClose, messages, onSend }: { onClose: () => void; message
       title="Chat"
       onClose={onClose}
       footer={
-        <form onSubmit={submit} className="border-t border-white/10 p-3">
-          <div className="flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 focus-within:bg-white/10">
-            <input
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Type a message…"
-              maxLength={2000}
-              className="min-w-0 flex-1 bg-transparent text-sm text-white placeholder:text-white/40 outline-none"
-            />
-            <button type="submit" disabled={!text.trim()} className="shrink-0 text-white/50 transition hover:text-[#2D8CFF] disabled:opacity-40 cursor-pointer" aria-label="Send">
-              <Send className="h-4 w-4" />
-            </button>
+        disabled ? (
+          <div className="border-t border-white/10 p-3">
+            <p className="flex items-center justify-center gap-2 rounded-xl bg-white/5 px-3 py-2.5 text-xs font-medium text-white/50">
+              <Lock className="h-3.5 w-3.5" /> The host has disabled chat.
+            </p>
           </div>
-        </form>
+        ) : (
+          <form onSubmit={submit} className="border-t border-white/10 p-3">
+            <div className="flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 focus-within:bg-white/10">
+              <input
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder="Type a message…"
+                maxLength={2000}
+                className="min-w-0 flex-1 bg-transparent text-sm text-white placeholder:text-white/40 outline-none"
+              />
+              <button type="submit" disabled={!text.trim()} className="shrink-0 text-white/50 transition hover:text-[#2D8CFF] disabled:opacity-40 cursor-pointer" aria-label="Send">
+                <Send className="h-4 w-4" />
+              </button>
+            </div>
+          </form>
+        )
       }
     >
       {messages.length === 0 ? (
@@ -504,6 +514,33 @@ function WhiteboardCanvas({ strokes, onStroke, onClear }: { strokes: Stroke[]; o
   );
 }
 
+// ── Rename dialog ───────────────────────────────────────────────────────────
+function RenameDialog({ initial, onClose, onSave }: { initial: string; onClose: () => void; onSave: (name: string) => void }) {
+  const [name, setName] = useState(initial);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={onClose} aria-hidden />
+      <div className="relative z-10 w-full max-w-sm rounded-2xl border border-white/10 bg-[#1c1c20] p-6 animate-fade-in">
+        <h3 className="text-base font-bold text-white">Rename yourself</h3>
+        <p className="mt-1 text-sm text-white/55">This is how others see you in the meeting.</p>
+        <form onSubmit={(e) => { e.preventDefault(); onSave(name); }} className="mt-4">
+          <input
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={60}
+            className="h-11 w-full rounded-xl border border-white/10 bg-white/5 px-3.5 text-sm text-white outline-none focus:border-[#2D8CFF]/50"
+          />
+          <div className="mt-5 flex justify-end gap-3">
+            <button type="button" onClick={onClose} className="inline-flex h-10 items-center rounded-lg px-4 text-sm font-semibold text-white/70 transition hover:bg-white/5 cursor-pointer">Cancel</button>
+            <button type="submit" disabled={!name.trim()} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0E72ED] px-5 text-sm font-semibold text-white transition hover:bg-[#0966d9] disabled:opacity-50 cursor-pointer">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ── Page ────────────────────────────────────────────────────────────────────
 export default function RoomPage() {
   const params = useParams<{ meetingCode: string }>();
@@ -513,8 +550,17 @@ export default function RoomPage() {
   const user = useUserStore((s) => s.user);
   const { isMuted, isVideoOff, isSharingScreen, toggleMute, toggleVideo, setIsSharingScreen, reset } = useRoomStore();
 
-  // Host = the local user, hardcoded for this UI-only build.
-  const isHost = true;
+  // Host is the real first-joiner reported by the backend (optimistic true while
+  // alone / connecting). Permissions mirror the backend room state.
+  const [isHost, setIsHost] = useState(true);
+  const [perms, setPerms] = useState({ allow_share: true, allow_chat: true, allow_rename: true });
+
+  // Screen share (real getDisplayMedia capture).
+  const screenStreamRef = useRef<MediaStream | null>(null);
+  const screenVideoRef = useRef<HTMLVideoElement>(null);
+  // In-meeting self-rename.
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [myNameOverride, setMyNameOverride] = useState<string | null>(null);
 
   const [peers, setPeers] = useState<Peer[]>(INITIAL_PEERS);
   const [panel, setPanel] = useState<Panel>(null);
@@ -559,25 +605,39 @@ export default function RoomPage() {
   const [board, setBoard] = useState<Stroke[]>([]);
 
   useEffect(() => {
-    const toRemote = (p: { id: string; name: string; is_muted: boolean; is_video_off: boolean; hand_raised: boolean }): RemotePeer => ({
-      id: p.id, name: p.name, accent: accentFor(p.id), muted: p.is_muted, videoOff: p.is_video_off, hand: p.hand_raised,
+    const toRemote = (p: { id: string; name: string; is_muted: boolean; is_video_off: boolean; hand_raised: boolean; is_screen_sharing?: boolean }): RemotePeer => ({
+      id: p.id, name: p.name, accent: accentFor(p.id), muted: p.is_muted, videoOff: p.is_video_off, hand: p.hand_raised, screenSharing: !!p.is_screen_sharing,
     });
     const offs = [
-      rt.on("room-state", (d: { participants: any[]; board?: Stroke[] }) => {
+      rt.on("room-state", (d: { you?: { is_host?: boolean }; participants: any[]; board?: Stroke[]; permissions?: typeof perms; locked?: boolean }) => {
         setRemote(d.participants.filter((p) => p.id !== rt.pid).map(toRemote));
         setBoard(d.board ?? []);
+        if (d.you) setIsHost(!!d.you.is_host);
+        if (d.permissions) setPerms(d.permissions);
+        if (typeof d.locked === "boolean") setLocked(d.locked);
       }),
+      rt.on("lock-state", (d: { locked: boolean }) => setLocked(d.locked)),
       rt.on("draw", (d: { stroke: Stroke }) => setBoard((b) => [...b, d.stroke])),
       rt.on("clear-board", () => setBoard([])),
       rt.on("participant-joined", (d: { participant: any }) => {
         setRemote((r) => [...r.filter((x) => x.id !== d.participant.id), toRemote(d.participant)]);
       }),
       rt.on("participant-left", (d: { participant_id: string }) => setRemote((r) => r.filter((x) => x.id !== d.participant_id))),
+      rt.on("host-changed", (d: { host_id: string }) => setIsHost(d.host_id === rt.pid)),
+      rt.on("permissions", (d: typeof perms) => setPerms(d)),
+      rt.on("participant-renamed", (d: { participant_id: string; name: string }) => {
+        setRemote((r) => r.map((x) => (x.id === d.participant_id ? { ...x, name: d.name } : x)));
+      }),
       rt.on("chat", (d: { sender_id: string; name: string; text: string }) => {
         setMessages((m) => [...m, { id: ++chatId.current, name: d.name, text: d.text, mine: d.sender_id === rt.pid, accent: YOU_ACCENT }]);
       }),
       rt.on("media-state", (d: { participant_id: string; kind: string; enabled: boolean }) => {
-        setRemote((r) => r.map((x) => (x.id === d.participant_id ? { ...x, muted: d.kind === "audio" ? !d.enabled : x.muted, videoOff: d.kind === "video" ? !d.enabled : x.videoOff } : x)));
+        setRemote((r) => r.map((x) => (x.id === d.participant_id ? {
+          ...x,
+          muted: d.kind === "audio" ? !d.enabled : x.muted,
+          videoOff: d.kind === "video" ? !d.enabled : x.videoOff,
+          screenSharing: d.kind === "screen" ? d.enabled : x.screenSharing,
+        } : x)));
       }),
       rt.on("hand", (d: { participant_id: string; raised: boolean }) => setRemote((r) => r.map((x) => (x.id === d.participant_id ? { ...x, hand: d.raised } : x)))),
       rt.on("breakout", (d: { rooms: { name: string; members: string[] }[] }) => {
@@ -649,14 +709,19 @@ export default function RoomPage() {
     setReactionsOpen(false);
   };
 
-  const youName = user?.display_name || "You";
-  const youInitials = user ? getInitials(user.display_name) : "Y";
+  const youName = myNameOverride || user?.display_name || "You";
+  const youInitials = getInitials(youName);
 
   // ── Host actions (local state only) ───────────────────────────
   const muteOne = (id: string) => setPeers((ps) => ps.map((p) => (p.id === id ? { ...p, muted: !p.muted } : p)));
   const promoteOne = (id: string) => setPeers((ps) => ps.map((p) => (p.id === id ? { ...p, role: p.role === "cohost" ? "attendee" : "cohost" } : p)));
   const muteAll = () => { setPeers((ps) => ps.map((p) => ({ ...p, muted: true }))); flash("All participants muted"); };
-  const toggleLock = () => { setLocked((l) => !l); flash(locked ? "Meeting unlocked" : "Meeting locked"); };
+  const toggleLock = () => {
+    const next = !locked;
+    setLocked(next);
+    rt.send("lock", { locked: next }); // gate new joins on the backend + sync everyone
+    flash(next ? "Meeting locked — new participants can’t join" : "Meeting unlocked");
+  };
 
   // Chat — sent over the WebSocket; the server broadcasts it back to everyone
   // (including us), so it renders via the "chat" subscription above.
@@ -666,6 +731,57 @@ export default function RoomPage() {
   const handleToggleMute = () => { toggleMute(); rt.send("media-state", { kind: "audio", enabled: isMuted }); };
   const handleToggleVideo = () => { toggleVideo(); rt.send("media-state", { kind: "video", enabled: isVideoOff }); };
 
+  // ── Screen share — real getDisplayMedia capture ───────────────
+  const stopShare = () => {
+    screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+    screenStreamRef.current = null;
+    setIsSharingScreen(false);
+    rt.send("media-state", { kind: "screen", enabled: false });
+  };
+  const startShare = async () => {
+    if (!isHost && !perms.allow_share) { flash("The host has disabled screen sharing."); return; }
+    if (!navigator.mediaDevices?.getDisplayMedia) { flash("Screen sharing isn’t supported here."); return; }
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+      screenStreamRef.current = stream;
+      // Fires when the user clicks the browser's native "Stop sharing".
+      stream.getVideoTracks()[0]?.addEventListener("ended", stopShare);
+      setIsSharingScreen(true);
+      rt.send("media-state", { kind: "screen", enabled: true });
+    } catch {
+      /* user dismissed the picker — no-op */
+    }
+  };
+  const toggleShare = () => { if (isSharingScreen) stopShare(); else startShare(); };
+
+  // Bind the captured stream to the <video> element while sharing.
+  useEffect(() => {
+    if (isSharingScreen && screenVideoRef.current && screenStreamRef.current) {
+      screenVideoRef.current.srcObject = screenStreamRef.current;
+    }
+  }, [isSharingScreen]);
+  // Stop capture if the room unmounts while still sharing.
+  useEffect(() => () => { screenStreamRef.current?.getTracks().forEach((t) => t.stop()); }, []);
+
+  // ── Host permissions & self-rename ────────────────────────────
+  const togglePerm = (key: "allow_share" | "allow_chat" | "allow_rename") => {
+    const next = { ...perms, [key]: !perms[key] };
+    setPerms(next);
+    rt.send("permissions", { [key]: next[key] });
+  };
+  const applyRename = (name: string) => {
+    const n = name.trim().slice(0, 60);
+    if (!n) return;
+    setMyNameOverride(n);
+    rt.send("rename", { name: n });
+    setRenameOpen(false);
+    flash("Name updated");
+  };
+  const canRename = isHost || perms.allow_rename;
+  const canShare = isHost || perms.allow_share;
+  const chatDisabled = !isHost && !perms.allow_chat;
+  const remoteSharer = remote.find((r) => r.screenSharing) ?? null;
+
   // Whiteboard — strokes relay over WS (server doesn't echo to sender, so add locally).
   const sendStroke = (s: Stroke) => { rt.send("draw", { stroke: s }); setBoard((b) => [...b, s]); };
   const clearBoard = () => { rt.send("clear-board"); setBoard([]); };
@@ -673,6 +789,7 @@ export default function RoomPage() {
   // Waiting room → admit. Updaters stay pure (no nested setState); peer adds
   // are deduped so React strict-mode's double-invoke can't double-admit.
   const admit = (id: string) => {
+    if (locked) { flash("Unlock the meeting to admit participants."); return; }
     const w = waiting.find((x) => x.id === id);
     if (!w) return;
     setPeers((ps) => (ps.some((p) => p.id === w.id) ? ps : [...ps, { id: w.id, name: w.name, videoOn: false, muted: false, role: "attendee" as const, accent: w.accent }]));
@@ -680,6 +797,7 @@ export default function RoomPage() {
     flash(`${w.name} admitted`);
   };
   const admitAll = () => {
+    if (locked) { flash("Unlock the meeting to admit participants."); return; }
     setPeers((ps) => {
       const have = new Set(ps.map((p) => p.id));
       const add = waiting.filter((w) => !have.has(w.id)).map((w) => ({ id: w.id, name: w.name, videoOn: false, muted: false, role: "attendee" as const, accent: w.accent }));
@@ -780,6 +898,12 @@ export default function RoomPage() {
         </div>
       )}
 
+      {remoteSharer && !isSharingScreen && (
+        <div className="flex items-center justify-center gap-2 border-b border-white/10 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300">
+          <ScreenShare className="h-4 w-4" /> {remoteSharer.name} is sharing their screen
+        </div>
+      )}
+
       {/* Stage + panel */}
       <div className="relative flex min-h-0 flex-1">
         <main className="relative flex min-w-0 flex-1 flex-col p-3 sm:p-4">
@@ -795,12 +919,14 @@ export default function RoomPage() {
             </div>
           ) : isSharingScreen ? (
             <div className="flex min-h-0 flex-1 flex-col gap-3">
-              <div className="flex flex-1 items-center justify-center rounded-2xl bg-[#101013] ring-1 ring-white/5">
-                <div className="flex flex-col items-center gap-3 text-center">
-                  <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#0E72ED]/15 text-[#2D8CFF]"><MonitorUp className="h-7 w-7" /></span>
-                  <p className="text-sm font-semibold text-white">You’re sharing your screen</p>
-                  <p className="text-xs text-white/50">Everyone in the meeting can see your screen.</p>
-                </div>
+              <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl bg-black ring-1 ring-white/5">
+                <video ref={screenVideoRef} autoPlay muted playsInline className="h-full w-full object-contain" />
+                <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1 text-xs font-semibold text-emerald-300 backdrop-blur-sm">
+                  <ScreenShare className="h-3.5 w-3.5" /> You’re sharing your screen
+                </span>
+                <button onClick={stopShare} className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-700 cursor-pointer">
+                  Stop sharing
+                </button>
               </div>
               <div className="flex h-24 shrink-0 gap-3 overflow-x-auto">
                 {tiles.map((t) => <VideoTile key={t.id} {...t} compact handRaised={t.you ? handRaised : false} />)}
@@ -919,7 +1045,7 @@ export default function RoomPage() {
                   onBroadcast={(rooms) => rt.send("breakout", { rooms })}
                 />
               ) : (
-                <ChatPanel onClose={() => setPanel(null)} messages={messages} onSend={sendMessage} />
+                <ChatPanel onClose={() => setPanel(null)} messages={messages} onSend={sendMessage} disabled={chatDisabled} />
               )}
             </aside>
           </>
@@ -930,7 +1056,7 @@ export default function RoomPage() {
       <footer className="flex h-20 shrink-0 items-center justify-center gap-1 border-t border-white/10 px-3 sm:gap-2">
         <ToolButton icon={isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />} label={isMuted ? "Unmute" : "Mute"} danger={isMuted} onClick={handleToggleMute} />
         <ToolButton icon={isVideoOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />} label={isVideoOff ? "Start video" : "Stop video"} danger={isVideoOff} onClick={handleToggleVideo} />
-        <ToolButton icon={<MonitorUp className="h-5 w-5" />} label="Share" active={isSharingScreen} onClick={() => setIsSharingScreen(!isSharingScreen)} />
+        <ToolButton icon={<MonitorUp className="h-5 w-5" />} label={canShare ? "Share" : "Locked"} active={isSharingScreen} onClick={canShare ? toggleShare : () => flash("The host has disabled screen sharing.")} />
         <ToolButton icon={<Users className="h-5 w-5" />} label="Participants" badge={total} active={panel === "participants"} onClick={() => setPanel((p) => (p === "participants" ? null : "participants"))} />
         <ToolButton icon={<MessageSquare className="h-5 w-5" />} label="Chat" active={panel === "chat"} onClick={() => setPanel((p) => (p === "chat" ? null : "chat"))} />
 
@@ -976,6 +1102,9 @@ export default function RoomPage() {
                 <Sparkles className="h-4 w-4" /> Virtual background
               </button>
               <div className="my-1 h-px bg-white/10" />
+              <button onClick={() => { setMoreOpen(false); if (canRename) setRenameOpen(true); else flash("The host has disabled renaming."); }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-white/85 hover:bg-white/5 cursor-pointer">
+                <Pencil className="h-4 w-4" /> Rename
+              </button>
               <button onClick={() => { setMoreOpen(false); router.push("/settings"); }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-white/85 hover:bg-white/5 cursor-pointer">
                 <Settings className="h-4 w-4" /> Settings
               </button>
@@ -1000,6 +1129,20 @@ export default function RoomPage() {
                   <Users className="h-4 w-4" /> Manage participants
                 </button>
                 <p className="px-3 pb-1 pt-1.5 text-[11px] leading-snug text-white/35">Remove or promote individuals from the Participants panel.</p>
+                <div className="my-1 h-px bg-white/10" />
+                <p className="px-3 pb-1 pt-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-300/70">Participant permissions</p>
+                {([
+                  { key: "allow_share" as const, label: "Allow screen share", icon: <MonitorUp className="h-4 w-4" /> },
+                  { key: "allow_chat" as const, label: "Allow chat", icon: <MessageSquare className="h-4 w-4" /> },
+                  { key: "allow_rename" as const, label: "Allow rename", icon: <Pencil className="h-4 w-4" /> },
+                ]).map((row) => (
+                  <button key={row.key} onClick={() => togglePerm(row.key)} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-white/85 hover:bg-white/5 cursor-pointer">
+                    {row.icon} <span className="flex-1">{row.label}</span>
+                    <span className={cn("flex h-5 w-9 items-center rounded-full px-0.5 transition-colors", perms[row.key] ? "justify-end bg-emerald-500/80" : "justify-start bg-white/15")}>
+                      <span className="h-4 w-4 rounded-full bg-white shadow" />
+                    </span>
+                  </button>
+                ))}
                 <div className="my-1 h-px bg-white/10" />
                 <button onClick={() => { setHostMenuOpen(false); endForAll(); }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-semibold text-red-400 hover:bg-red-500/10 cursor-pointer">
                   <PhoneOff className="h-4 w-4" /> End meeting for all
@@ -1036,6 +1179,11 @@ export default function RoomPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Rename dialog */}
+      {renameOpen && (
+        <RenameDialog initial={youName} onClose={() => setRenameOpen(false)} onSave={applyRename} />
       )}
 
       {/* Toast */}

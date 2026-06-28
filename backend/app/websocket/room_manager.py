@@ -30,8 +30,14 @@ class Participant:
     role: str = "attendee"
     is_muted: bool = False
     is_video_off: bool = True
+    is_screen_sharing: bool = False
     hand_raised: bool = False
     join_order: int = 0
+
+
+def _default_permissions() -> dict[str, bool]:
+    """Meeting-wide permissions the host can toggle (all on by default)."""
+    return {"allow_share": True, "allow_chat": True, "allow_rename": True}
 
 
 @dataclass
@@ -40,6 +46,8 @@ class Room:
     participants: dict[str, Participant] = field(default_factory=dict)
     host_id: str | None = None
     board: list[dict[str, Any]] = field(default_factory=list)
+    permissions: dict[str, bool] = field(default_factory=_default_permissions)
+    locked: bool = False
     _order: int = 0
 
     def next_order(self) -> int:
@@ -64,6 +72,7 @@ class RoomManager:
             "is_host": room.host_id == p.id,
             "is_muted": p.is_muted,
             "is_video_off": p.is_video_off,
+            "is_screen_sharing": p.is_screen_sharing,
             "hand_raised": p.hand_raised,
             "join_order": p.join_order,
         }
@@ -73,10 +82,14 @@ class RoomManager:
         return [self._serialize(room, p) for p in ordered]
 
     # ── Presence ──────────────────────────────────────────────
-    async def join(self, code: str, pid: str, name: str) -> None:
+    async def join(self, code: str, pid: str, name: str) -> bool:
+        """Add a participant. Returns False (rejected) if the room is locked to new joiners."""
         async with self._lock:
             room = self._rooms.setdefault(code, Room(code=code))
             reconnect = pid in room.participants
+            # A locked room only accepts people who are already in it (reconnects).
+            if not reconnect and room.locked:
+                return False
             if reconnect:
                 p = room.participants[pid]
             else:
@@ -89,10 +102,13 @@ class RoomManager:
             you = self._serialize(room, p)
             others = room.others(exclude=pid)
             board = list(room.board)
+            perms = dict(room.permissions)
+            locked = room.locked
 
-        await self._conn.unicast(pid, events.build(EventType.ROOM_STATE, you=you, participants=roster, board=board))
+        await self._conn.unicast(pid, events.build(EventType.ROOM_STATE, you=you, participants=roster, board=board, permissions=perms, locked=locked))
         if not reconnect:
             await self._conn.broadcast(others, events.build(EventType.PARTICIPANT_JOINED, participant=you))
+        return True
 
     async def leave(self, code: str, pid: str) -> None:
         async with self._lock:
@@ -120,6 +136,9 @@ class RoomManager:
         text = (text or "").strip()
         room = self._rooms.get(code)
         if not text or not room or pid not in room.participants:
+            return
+        # Host can disable participant chat; the host themselves is exempt.
+        if not room.permissions.get("allow_chat", True) and room.host_id != pid:
             return
         sender = room.participants[pid]
         await self._conn.broadcast(
@@ -167,13 +186,15 @@ class RoomManager:
     # ── Media / hand ──────────────────────────────────────────
     async def set_media(self, code: str, pid: str, kind: str, enabled: bool) -> None:
         room = self._rooms.get(code)
-        if not room or pid not in room.participants or kind not in {"audio", "video"}:
+        if not room or pid not in room.participants or kind not in {"audio", "video", "screen"}:
             return
         p = room.participants[pid]
         if kind == "audio":
             p.is_muted = not enabled
-        else:
+        elif kind == "video":
             p.is_video_off = not enabled
+        else:  # screen
+            p.is_screen_sharing = enabled
         await self._conn.broadcast(list(room.participants.keys()), events.build(EventType.MEDIA_STATE, participant_id=pid, kind=kind, enabled=enabled))
 
     async def set_hand(self, code: str, pid: str, raised: bool) -> None:
@@ -182,6 +203,47 @@ class RoomManager:
             return
         room.participants[pid].hand_raised = raised
         await self._conn.broadcast(list(room.participants.keys()), events.build(EventType.HAND, participant_id=pid, raised=raised))
+
+    # ── Host permissions ──────────────────────────────────────
+    async def set_permissions(self, code: str, pid: str, perms: dict[str, Any]) -> None:
+        """Host-only. Merge known permission flags and broadcast to everyone."""
+        room = self._rooms.get(code)
+        if not room or room.host_id != pid or not isinstance(perms, dict):
+            return
+        for key in ("allow_share", "allow_chat", "allow_rename"):
+            if key in perms:
+                room.permissions[key] = bool(perms[key])
+        await self._conn.broadcast(
+            list(room.participants.keys()),
+            events.build(EventType.PERMISSIONS, **room.permissions),
+        )
+
+    # ── Lock ──────────────────────────────────────────────────
+    async def set_lock(self, code: str, pid: str, locked: bool) -> None:
+        """Host-only. Lock/unlock the room and tell everyone (gates new joins)."""
+        room = self._rooms.get(code)
+        if not room or room.host_id != pid:
+            return
+        room.locked = bool(locked)
+        await self._conn.broadcast(
+            list(room.participants.keys()),
+            events.build(EventType.LOCK_STATE, locked=room.locked),
+        )
+
+    # ── Rename ────────────────────────────────────────────────
+    async def rename(self, code: str, pid: str, name: str) -> None:
+        """Self-rename, gated by the meeting's allow_rename permission (host always may)."""
+        room = self._rooms.get(code)
+        name = (name or "").strip()[:60]
+        if not room or pid not in room.participants or not name:
+            return
+        if not room.permissions.get("allow_rename", True) and room.host_id != pid:
+            return
+        room.participants[pid].name = name
+        await self._conn.broadcast(
+            list(room.participants.keys()),
+            events.build(EventType.PARTICIPANT_RENAMED, participant_id=pid, name=name),
+        )
 
     def room_size(self, code: str) -> int:
         r = self._rooms.get(code)

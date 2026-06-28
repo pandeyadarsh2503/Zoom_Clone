@@ -16,6 +16,7 @@ from app.models.enums import MeetingStatus, ParticipantRole
 from app.models.user import User
 from app.models.meeting import Meeting
 from app.models.participant import Participant
+from app.models.contact import Contact
 
 __all__: list[str] = [
     "MeetingStatus",
@@ -23,4 +24,5 @@ __all__: list[str] = [
     "User",
     "Meeting",
     "Participant",
+    "Contact",
 ]

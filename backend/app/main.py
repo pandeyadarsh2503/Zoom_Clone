@@ -12,7 +12,7 @@ from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logging_config import configure_logging
 from app.db.init_db import seed_default_user
-from app.db.seed import seed_sample_data
+from app.db.seed import seed_contacts, seed_sample_data
 from app.db.session import SessionLocal, engine
 
 # Import all models so that Base.metadata is populated before create_all().
@@ -52,6 +52,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         seed_default_user(db)
         seed_sample_data(db)
+        seed_contacts(db)
     finally:
         db.close()
 

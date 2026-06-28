@@ -31,4 +31,10 @@ async def dispatch(rooms: RoomManager, code: str, pid: str, raw: dict[str, Any])
         await rooms.set_media(code, pid, d.get("kind", ""), bool(d.get("enabled", False)))
     elif t is EventType.HAND:
         await rooms.set_hand(code, pid, bool(d.get("raised", False)))
+    elif t is EventType.PERMISSIONS:
+        await rooms.set_permissions(code, pid, d)
+    elif t is EventType.RENAME:
+        await rooms.rename(code, pid, d.get("name", ""))
+    elif t is EventType.LOCK:
+        await rooms.set_lock(code, pid, bool(d.get("locked", False)))
     # PING is a keepalive no-op.

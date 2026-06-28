@@ -22,15 +22,20 @@ class EventType(str, enum.Enum):
     CLEAR_BOARD = "clear-board"
     BREAKOUT = "breakout"          # host: {rooms:[{name, members}]}
     BREAKOUT_END = "breakout-end"  # host
-    MEDIA_STATE = "media-state"    # {kind, enabled}
+    MEDIA_STATE = "media-state"    # {kind: audio|video|screen, enabled}
     HAND = "hand"                  # {raised}
+    PERMISSIONS = "permissions"    # host: {allow_share, allow_chat, allow_rename}
+    RENAME = "rename"              # {name}
+    LOCK = "lock"                  # host: {locked}
     PING = "ping"
 
     # ── Outbound (server → client) ────────────────────────────
-    ROOM_STATE = "room-state"      # {you, participants}
+    ROOM_STATE = "room-state"      # {you, participants, permissions, board, locked}
     PARTICIPANT_JOINED = "participant-joined"
     PARTICIPANT_LEFT = "participant-left"
+    PARTICIPANT_RENAMED = "participant-renamed"
     HOST_CHANGED = "host-changed"
+    LOCK_STATE = "lock-state"      # {locked}
     PONG = "pong"
     ERROR = "error"
 

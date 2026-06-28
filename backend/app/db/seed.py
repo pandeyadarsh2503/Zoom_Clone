@@ -5,12 +5,36 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
+from app.models.contact import Contact
 from app.models.enums import MeetingStatus, ParticipantRole
 from app.models.meeting import Meeting
 from app.models.participant import Participant
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
+
+
+_SEED_CONTACTS = [
+    ("Sarah Chen", "sarah.chen@acme.io", "Product Manager", "online", "from-rose-500 to-orange-500"),
+    ("Marcus Lee", "marcus.lee@acme.io", "Engineering Lead", "busy", "from-sky-500 to-indigo-500"),
+    ("Priya Sharma", "priya.sharma@acme.io", "UX Designer", "online", "from-emerald-500 to-teal-500"),
+    ("David Park", "david.park@acme.io", "Data Scientist", "offline", "from-amber-500 to-orange-600"),
+    ("Elena Rossi", "elena.rossi@acme.io", "Marketing Director", "online", "from-fuchsia-500 to-purple-600"),
+    ("James Wright", "james.wright@acme.io", "Sales Manager", "offline", "from-violet-500 to-blue-500"),
+]
+
+
+def seed_contacts(db: Session) -> None:
+    """Seed a starter directory for the demo user (idempotent)."""
+    user: User | None = db.query(User).first()
+    if user is None:
+        return
+    if db.query(Contact).filter(Contact.owner_id == user.id).first():
+        return
+    for name, email, title, status, accent in _SEED_CONTACTS:
+        db.add(Contact(owner_id=user.id, name=name, email=email, title=title, status=status, accent=accent))
+    db.commit()
+    logger.info("Seeded %d demo contacts.", len(_SEED_CONTACTS))
 
 # ── Sample meeting definitions ─────────────────────────────────────────────
 # Each entry represents one realistic scenario that exercises a distinct
