@@ -84,3 +84,22 @@ class InstantMeetingResponse(MeetingOut):
     """
 
     invite_url: str
+
+
+class JoinMeetingRequest(BaseModel):
+    """
+    POST /meetings/join — body schema.
+
+    `meeting_code` accepts either a bare join code ("abc-defg-hij") or a full
+    invite link ("http://.../room/abc-defg-hij"); the service normalises it.
+    `display_name` is the name the joiner wishes to appear as.
+    """
+
+    meeting_code: str = Field(..., min_length=1, max_length=300)
+    display_name: str = Field(..., min_length=1, max_length=100)
+
+
+class JoinMeetingResponse(MeetingOut):
+    """Response for POST /meetings/join — the joined meeting plus its invite URL."""
+
+    invite_url: str

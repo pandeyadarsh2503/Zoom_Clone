@@ -11,6 +11,17 @@ export interface InstantMeetingResponse extends Meeting {
   invite_url: string;
 }
 
+/** Body for POST /api/v1/meetings/join. */
+export interface JoinMeetingPayload {
+  meeting_code: string;
+  display_name: string;
+}
+
+/** Response from POST /api/v1/meetings/join — the joined meeting plus its share link. */
+export interface JoinMeetingResponse extends Meeting {
+  invite_url: string;
+}
+
 /**
  * Meeting-domain API calls.
  */
@@ -24,5 +35,10 @@ export const meetingsApi = {
   /** POST /api/v1/meetings/instant — start a live instant meeting and get its invite URL. */
   createInstantMeeting(): Promise<InstantMeetingResponse> {
     return apiClient.post<InstantMeetingResponse>("/api/v1/meetings/instant");
+  },
+
+  /** POST /api/v1/meetings/join — join an existing meeting by code or invite link. */
+  joinMeeting(payload: JoinMeetingPayload): Promise<JoinMeetingResponse> {
+    return apiClient.post<JoinMeetingResponse>("/api/v1/meetings/join", payload);
   },
 };

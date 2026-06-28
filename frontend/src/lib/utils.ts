@@ -112,6 +112,24 @@ export function getInitials(name: string): string {
 }
 
 /**
+ * Extracts a bare meeting code from a raw join input.
+ *
+ * Accepts either a plain code ("abc-defg-hij") or a full invite link
+ * ("https://host/room/abc-defg-hij?x=1"). Returns the lowercase code, or an
+ * empty string if nothing usable remains.
+ */
+export function parseMeetingCode(input: string): string {
+  let value = input.trim();
+  const marker = "/room/";
+  if (value.includes(marker)) {
+    value = value.slice(value.indexOf(marker) + marker.length);
+  }
+  // Strip query string, fragment, and surrounding slashes.
+  value = value.split("?")[0].split("#")[0].replace(/^\/+|\/+$/g, "").trim();
+  return value.toLowerCase();
+}
+
+/**
  * Generates a random short code suitable for a meeting join link.
  * Format: "xxx-yyyy-zzz" (10 chars + 2 dashes = 12).
  */

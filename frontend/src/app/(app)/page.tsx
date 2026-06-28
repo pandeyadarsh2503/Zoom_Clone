@@ -33,6 +33,7 @@ import { cn, formatTime, formatRelativeDay, formatDuration, isToday } from "@/li
 import { meetingsApi } from "@/lib/api/meetings";
 import { Modal } from "@/components/ui/Modal";
 import { Spinner } from "@/components/ui/Spinner";
+import { JoinMeetingModal } from "@/components/JoinMeetingModal";
 import type { Meeting, MeetingStatus } from "@/types/meeting";
 
 // ── Status chip ─────────────────────────────────────────────────────────────
@@ -222,6 +223,8 @@ export default function DashboardPage() {
 
   // Instant-meeting creation — guards against duplicate clicks.
   const [isCreatingInstant, setIsCreatingInstant] = useState(false);
+  // Join-meeting dialog.
+  const [isJoinOpen, setIsJoinOpen] = useState(false);
 
   const [isPlaceholderOpen, setIsPlaceholderOpen] = useState(false);
   const [placeholderTitle, setPlaceholderTitle] = useState("");
@@ -374,7 +377,7 @@ export default function DashboardPage() {
             subtitle="Enter a meeting code"
             icon={<PlusGlyph />}
             gradient="bg-gradient-to-br from-[#2D8CFF] to-[#0E72ED]"
-            onClick={() => triggerAction("Join Meeting", "Enter a meeting code to join a call. Fully active in Phase 2.")}
+            onClick={() => setIsJoinOpen(true)}
           />
         </div>
         <div className="col-span-12 sm:col-span-6 lg:col-span-3">
@@ -529,6 +532,9 @@ export default function DashboardPage() {
           </section>
         )}
       </div>
+
+      {/* Join meeting */}
+      <JoinMeetingModal isOpen={isJoinOpen} onClose={() => setIsJoinOpen(false)} />
 
       {/* Placeholder modal */}
       <Modal isOpen={isPlaceholderOpen} onClose={() => setIsPlaceholderOpen(false)} title={placeholderTitle} size="sm">

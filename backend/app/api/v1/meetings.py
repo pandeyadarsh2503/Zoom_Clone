@@ -7,7 +7,13 @@ from fastapi import APIRouter, Query, status
 from app.api.deps import CurrentUser, DbSession
 from app.models.enums import MeetingStatus
 from app.repositories.meeting_repo import MeetingRepository
-from app.schemas.meeting import InstantMeetingResponse, MeetingListOut, MeetingOut
+from app.schemas.meeting import (
+    InstantMeetingResponse,
+    JoinMeetingRequest,
+    JoinMeetingResponse,
+    MeetingListOut,
+    MeetingOut,
+)
 from app.services.meeting_service import MeetingService
 
 router = APIRouter(prefix="/meetings", tags=["meetings"])
@@ -59,6 +65,28 @@ def create_instant_meeting(db: DbSession, current_user: CurrentUser) -> InstantM
     meeting = service.create_instant_meeting(current_user)
     invite_url = service.build_invite_url(meeting.meeting_code)
     return InstantMeetingResponse(
+        **MeetingOut.model_validate(meeting).model_dump(),
+        invite_url=invite_url,
+    )
+
+
+@router.post(
+    "/join",
+    response_model=JoinMeetingResponse,
+    summary="Join a meeting",
+    description=(
+        "Joins an existing meeting by ID or invite link. Validates that the "
+        "meeting exists and is active, records the participant, and returns the "
+        "meeting so the client can enter the room."
+    ),
+)
+def join_meeting(
+    payload: JoinMeetingRequest, db: DbSession, current_user: CurrentUser
+) -> JoinMeetingResponse:
+    service = MeetingService(db)
+    meeting = service.join_meeting(payload.meeting_code, payload.display_name, current_user)
+    invite_url = service.build_invite_url(meeting.meeting_code)
+    return JoinMeetingResponse(
         **MeetingOut.model_validate(meeting).model_dump(),
         invite_url=invite_url,
     )

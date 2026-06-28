@@ -8,7 +8,11 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.exceptions import ConflictException
+from app.core.exceptions import (
+    ConflictException,
+    NotFoundException,
+    UnprocessableException,
+)
 from app.models.enums import MeetingStatus, ParticipantRole
 from app.models.meeting import Meeting
 from app.models.participant import Participant
@@ -62,6 +66,77 @@ class MeetingService:
         """Assemble the shareable room URL from the configured frontend base."""
         base = settings.FRONTEND_URL.rstrip("/")
         return f"{base}/room/{meeting_code}"
+
+    @staticmethod
+    def normalize_code(raw: str) -> str:
+        """
+        Reduce a raw join input to a bare meeting code.
+
+        Accepts a plain code ("abc-defg-hij") or a full invite link
+        ("https://host/room/abc-defg-hij?x=1"); returns the lowercase code.
+        """
+        value = raw.strip()
+        if "/room/" in value:
+            value = value.split("/room/", 1)[1]
+        # Drop any query string / fragment and surrounding slashes.
+        value = value.split("?", 1)[0].split("#", 1)[0].strip().strip("/")
+        return value.lower()
+
+    # ── Join ──────────────────────────────────────────────────────
+
+    def join_meeting(self, identifier: str, display_name: str, user: User) -> Meeting:
+        """
+        Join an existing meeting by code or invite link.
+
+        Validation:
+          - the meeting must exist (else 404),
+          - it must still be active — not ended or cancelled (else 422),
+          - it must have capacity for a new joiner (else 422).
+
+        On success the caller's display name is applied, their Participant row
+        is created (or revived if they previously left), and the meeting is
+        returned so the client can redirect into the room.
+        """
+        code = self.normalize_code(identifier)
+        if not code:
+            raise UnprocessableException("Enter a meeting ID or invite link.")
+
+        meeting = self.meetings.get_by_code(code)
+        if meeting is None:
+            raise NotFoundException("Meeting", code)
+
+        if meeting.status in (MeetingStatus.ENDED, MeetingStatus.CANCELLED):
+            raise UnprocessableException("This meeting is no longer active.")
+
+        existing = self.participants.get_by_meeting_and_user(meeting.id, user.id)
+        if existing is None and self.participants.count_active(meeting.id) >= meeting.max_participants:
+            raise UnprocessableException("This meeting is full.")
+
+        # Apply the joiner's chosen display name.
+        name = display_name.strip()
+        if name and user.display_name != name:
+            user.display_name = name
+
+        now = datetime.now(timezone.utc)
+        if existing is not None:
+            # Revive a prior participation (rejoin) rather than duplicating.
+            existing.left_at = None
+            existing.joined_at = now
+        else:
+            self.db.add(
+                Participant(
+                    meeting_id=meeting.id,
+                    user_id=user.id,
+                    role=ParticipantRole.ATTENDEE,
+                    joined_at=now,
+                )
+            )
+
+        self.db.commit()
+        self.db.refresh(meeting)
+
+        logger.info("User %s joined meeting %s (code=%s)", user.id, meeting.id, meeting.meeting_code)
+        return meeting
 
     # ── Instant meeting ───────────────────────────────────────────
 
