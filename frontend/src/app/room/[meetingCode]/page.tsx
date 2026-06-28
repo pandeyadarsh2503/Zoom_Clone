@@ -26,11 +26,23 @@ import {
   ShieldCheck,
   Send,
   MoreVertical,
+  MoreHorizontal,
   UserMinus,
   Crown,
   Lock,
   LockOpen,
   VolumeX,
+  Smile,
+  Hand,
+  LayoutGrid,
+  Maximize2,
+  Captions,
+  Sparkles,
+  Disc,
+  Settings,
+  Presentation,
+  BarChart3,
+  Grid2x2,
 } from "lucide-react";
 import { useUserStore } from "@/store/userStore";
 import { useRoomStore } from "@/store/roomStore";
@@ -52,7 +64,7 @@ const INITIAL_PEERS: Peer[] = [
   { id: "p3", name: "Priya Sharma", videoOn: true, muted: false, role: "attendee", accent: "from-emerald-500 to-teal-500" },
 ];
 
-type Panel = "participants" | "chat" | null;
+type Panel = "participants" | "chat" | "polls" | "breakout" | null;
 const YOU_ACCENT = "from-violet-500 to-blue-500";
 
 // ── Video tile ──────────────────────────────────────────────────────────────
@@ -65,6 +77,8 @@ function VideoTile({
   you,
   host,
   compact,
+  active,
+  handRaised,
 }: {
   name: string;
   initials: string;
@@ -74,9 +88,22 @@ function VideoTile({
   you?: boolean;
   host?: boolean;
   compact?: boolean;
+  active?: boolean;
+  handRaised?: boolean;
 }) {
   return (
-    <div className={cn("group relative overflow-hidden rounded-2xl bg-[#18181b] ring-1 ring-white/5", compact ? "h-full w-44 shrink-0" : "h-full w-full")}>
+    <div
+      className={cn(
+        "group relative overflow-hidden rounded-2xl bg-[#18181b] transition-shadow",
+        compact ? "h-full w-44 shrink-0" : "h-full w-full",
+        active ? "ring-2 ring-[#2D8CFF] shadow-[0_0_0_3px_rgba(45,140,255,0.25)]" : "ring-1 ring-white/5",
+      )}
+    >
+      {handRaised && (
+        <span className="absolute left-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-amber-400 text-sm shadow-lg" title="Raised hand">
+          ✋
+        </span>
+      )}
       {videoOn ? (
         <div className={cn("absolute inset-0 bg-gradient-to-br opacity-90", accent)}>
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.18),transparent_55%)]" />
@@ -227,25 +254,147 @@ function PanelShell({ title, onClose, children, footer }: { title: string; onClo
   );
 }
 
-function ChatPanel({ onClose }: { onClose: () => void }) {
+interface ChatMsg { id: number; name: string; text: string; mine: boolean; accent: string }
+
+function ChatPanel({ onClose, messages, onSend }: { onClose: () => void; messages: ChatMsg[]; onSend: (t: string) => void }) {
+  const [text, setText] = useState("");
+  const endRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length]);
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const t = text.trim();
+    if (!t) return;
+    onSend(t);
+    setText("");
+  };
   return (
     <PanelShell
       title="Chat"
       onClose={onClose}
       footer={
-        <div className="border-t border-white/10 p-3">
-          <div className="flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 opacity-60">
-            <input disabled placeholder="Type a message…" className="min-w-0 flex-1 bg-transparent text-sm text-white placeholder:text-white/40 outline-none" />
-            <Send className="h-4 w-4 shrink-0 text-white/40" />
+        <form onSubmit={submit} className="border-t border-white/10 p-3">
+          <div className="flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 focus-within:bg-white/10">
+            <input
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Type a message…"
+              maxLength={2000}
+              className="min-w-0 flex-1 bg-transparent text-sm text-white placeholder:text-white/40 outline-none"
+            />
+            <button type="submit" disabled={!text.trim()} className="shrink-0 text-white/50 transition hover:text-[#2D8CFF] disabled:opacity-40 cursor-pointer" aria-label="Send">
+              <Send className="h-4 w-4" />
+            </button>
           </div>
-        </div>
+        </form>
       }
     >
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 px-8 text-center">
-        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/5 text-white/40"><MessageSquare className="h-6 w-6" /></span>
-        <p className="text-sm font-medium text-white/70">No messages yet</p>
-        <p className="text-xs leading-relaxed text-white/40">In-call chat is a placeholder in this build.</p>
+      {messages.length === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-8 text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/5 text-white/40"><MessageSquare className="h-6 w-6" /></span>
+          <p className="text-sm font-medium text-white/70">No messages yet</p>
+          <p className="text-xs leading-relaxed text-white/40">Say hello to the meeting.</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3 p-4">
+          {messages.map((m) => (
+            <div key={m.id} className={cn("flex flex-col gap-1", m.mine ? "items-end" : "items-start")}>
+              <span className="px-1 text-[11px] font-medium text-white/40">{m.mine ? "You" : m.name}</span>
+              <span className={cn("max-w-[85%] rounded-2xl px-3 py-2 text-sm", m.mine ? "bg-[#0E72ED] text-white" : "bg-white/10 text-white/90")}>{m.text}</span>
+            </div>
+          ))}
+          <div ref={endRef} />
+        </div>
+      )}
+    </PanelShell>
+  );
+}
+
+// ── Polls panel ─────────────────────────────────────────────────────────────
+function PollsPanel({
+  onClose,
+  poll,
+  onCreate,
+  onVote,
+}: {
+  onClose: () => void;
+  poll: { question: string; options: { text: string; votes: number }[]; voted: number | null } | null;
+  onCreate: (q: string, opts: string[]) => void;
+  onVote: (i: number) => void;
+}) {
+  const [q, setQ] = useState("");
+  const [opts, setOpts] = useState(["", ""]);
+  const inputCls = "h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white placeholder:text-white/35 outline-none focus:border-[#2D8CFF]/50";
+
+  if (!poll) {
+    const valid = q.trim() && opts.filter((o) => o.trim()).length >= 2;
+    return (
+      <PanelShell title="Polls" onClose={onClose}>
+        <div className="flex flex-col gap-3 p-4">
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask a question…" className={inputCls} />
+          {opts.map((o, i) => (
+            <input key={i} value={o} onChange={(e) => setOpts((a) => a.map((x, j) => (j === i ? e.target.value : x)))} placeholder={`Option ${i + 1}`} className={inputCls} />
+          ))}
+          {opts.length < 4 && (
+            <button onClick={() => setOpts((a) => [...a, ""])} className="self-start text-sm font-semibold text-[#2D8CFF] hover:underline cursor-pointer">+ Add option</button>
+          )}
+          <button onClick={() => valid && onCreate(q.trim(), opts.filter((o) => o.trim()))} disabled={!valid} className="mt-1 h-10 rounded-lg bg-[#0E72ED] text-sm font-semibold text-white transition hover:bg-[#0966d9] disabled:opacity-40 cursor-pointer">Launch poll</button>
+        </div>
+      </PanelShell>
+    );
+  }
+
+  const total = poll.options.reduce((s, o) => s + o.votes, 0);
+  return (
+    <PanelShell title="Polls" onClose={onClose}>
+      <div className="flex flex-col gap-3 p-4">
+        <p className="text-sm font-semibold text-white">{poll.question}</p>
+        {poll.options.map((o, i) => {
+          const pct = total ? Math.round((o.votes / total) * 100) : 0;
+          return (
+            <button key={i} onClick={() => onVote(i)} disabled={poll.voted !== null} className={cn("relative overflow-hidden rounded-xl border border-white/10 px-3 py-2.5 text-left transition", poll.voted === null ? "hover:bg-white/5 cursor-pointer" : "cursor-default", poll.voted === i && "border-[#2D8CFF]/50")}>
+              <span className="absolute inset-y-0 left-0 bg-[#0E72ED]/25 transition-all" style={{ width: `${pct}%` }} />
+              <span className="relative flex items-center justify-between text-sm text-white/90"><span>{o.text}</span><span className="font-semibold text-white/60">{pct}%</span></span>
+            </button>
+          );
+        })}
+        <p className="text-xs text-white/40">{total} vote{total === 1 ? "" : "s"}{poll.voted !== null && " · You voted"}</p>
       </div>
+    </PanelShell>
+  );
+}
+
+// ── Breakout rooms panel ────────────────────────────────────────────────────
+function BreakoutPanel({ onClose, names }: { onClose: () => void; names: string[] }) {
+  const [rooms, setRooms] = useState<{ name: string; members: string[] }[] | null>(null);
+  const create = (n: number) => {
+    const r = Array.from({ length: n }, (_, i) => ({ name: `Room ${i + 1}`, members: [] as string[] }));
+    names.forEach((m, i) => r[i % n].members.push(m));
+    setRooms(r);
+  };
+  return (
+    <PanelShell title="Breakout rooms" onClose={onClose}>
+      {!rooms ? (
+        <div className="flex flex-col items-center gap-4 p-6 text-center">
+          <p className="text-sm text-white/60">Split everyone into smaller rooms.</p>
+          <div className="flex gap-2">
+            {[2, 3, 4].map((n) => (
+              <button key={n} onClick={() => create(n)} className="h-10 rounded-lg bg-white/5 px-4 text-sm font-semibold text-white/85 transition hover:bg-white/10 cursor-pointer">{n} rooms</button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3 p-4">
+          {rooms.map((r, i) => (
+            <div key={i} className="rounded-xl border border-white/10 bg-white/5 p-3">
+              <p className="text-sm font-semibold text-white">{r.name} <span className="text-white/40">({r.members.length})</span></p>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {r.members.map((m) => <span key={m} className="rounded-md bg-white/10 px-2 py-0.5 text-xs text-white/80">{m}</span>)}
+              </div>
+            </div>
+          ))}
+          <button onClick={() => setRooms(null)} className="self-start text-sm font-semibold text-[#2D8CFF] hover:underline cursor-pointer">Reassign</button>
+        </div>
+      )}
     </PanelShell>
   );
 }
@@ -269,15 +418,91 @@ export default function RoomPage() {
   const [locked, setLocked] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<Peer | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [hostMenuOpen, setHostMenuOpen] = useState(false);
+  const hostMenuRef = useRef<HTMLDivElement>(null);
+
+  // Engagement + view state (UI only).
+  const [view, setView] = useState<"gallery" | "speaker">("gallery");
+  const [handRaised, setHandRaised] = useState(false);
+  const [reactionsOpen, setReactionsOpen] = useState(false);
+  const reactionsRef = useRef<HTMLDivElement>(null);
+  const [reactions, setReactions] = useState<{ id: number; emoji: string; left: number }[]>([]);
+  const reactionId = useRef(0);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+  const [captionsOn, setCaptionsOn] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [activeSpeakerId, setActiveSpeakerId] = useState<string | null>(null);
+
+  // Chat
+  const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const chatId = useRef(0);
+  // Waiting room (people the host can admit)
+  const [waiting, setWaiting] = useState<{ id: string; name: string; accent: string }[]>([
+    { id: "w1", name: "Jordan Diaz", accent: "from-fuchsia-500 to-purple-600" },
+    { id: "w2", name: "Lin Wei", accent: "from-cyan-500 to-blue-500" },
+  ]);
+  // Whiteboard overlay
+  const [whiteboardOn, setWhiteboardOn] = useState(false);
+  // Poll (single active poll for this UI)
+  const [poll, setPoll] = useState<{ question: string; options: { text: string; votes: number }[]; voted: number | null } | null>(null);
 
   useEffect(() => {
     const t = setInterval(() => setElapsed((e) => e + 1), 1000);
     return () => clearInterval(t);
   }, []);
 
+  // Close the remove dialog / side panel on Escape.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (removeTarget) setRemoveTarget(null);
+      else if (panel) setPanel(null);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [removeTarget, panel]);
+
+  // Close the host menu on outside click.
+  useEffect(() => {
+    if (!hostMenuOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (hostMenuRef.current && !hostMenuRef.current.contains(e.target as Node)) setHostMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [hostMenuOpen]);
+
+  // Close reactions / more popovers on outside click.
+  useEffect(() => {
+    if (!reactionsOpen && !moreOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (reactionsRef.current && !reactionsRef.current.contains(e.target as Node)) setReactionsOpen(false);
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) setMoreOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [reactionsOpen, moreOpen]);
+
   const flash = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast((m) => (m === msg ? null : m)), 2600);
+  };
+
+  const sendReaction = (emoji: string) => {
+    const id = ++reactionId.current;
+    const left = 25 + Math.random() * 50; // % horizontal position
+    setReactions((r) => [...r, { id, emoji, left }]);
+    setTimeout(() => setReactions((r) => r.filter((x) => x.id !== id)), 3000);
+    setReactionsOpen(false);
+  };
+
+  const toggleHand = () => {
+    setHandRaised((h) => {
+      flash(h ? "Hand lowered" : "Hand raised ✋");
+      return !h;
+    });
+    setReactionsOpen(false);
   };
 
   const youName = user?.display_name || "You";
@@ -287,6 +512,44 @@ export default function RoomPage() {
   const muteOne = (id: string) => setPeers((ps) => ps.map((p) => (p.id === id ? { ...p, muted: !p.muted } : p)));
   const promoteOne = (id: string) => setPeers((ps) => ps.map((p) => (p.id === id ? { ...p, role: p.role === "cohost" ? "attendee" : "cohost" } : p)));
   const muteAll = () => { setPeers((ps) => ps.map((p) => ({ ...p, muted: true }))); flash("All participants muted"); };
+  const toggleLock = () => { setLocked((l) => !l); flash(locked ? "Meeting unlocked" : "Meeting locked"); };
+
+  // Chat (functional, local). The first peer auto-acknowledges for liveliness.
+  const sendMessage = (text: string) => {
+    const id = ++chatId.current;
+    setMessages((m) => [...m, { id, name: youName, text, mine: true, accent: YOU_ACCENT }]);
+    const peer = peers[0];
+    if (peer) {
+      setTimeout(() => setMessages((m) => [...m, { id: ++chatId.current, name: peer.name, text: "👍", mine: false, accent: peer.accent }]), 1300);
+    }
+  };
+
+  // Waiting room → admit. Updaters stay pure (no nested setState); peer adds
+  // are deduped so React strict-mode's double-invoke can't double-admit.
+  const admit = (id: string) => {
+    const w = waiting.find((x) => x.id === id);
+    if (!w) return;
+    setPeers((ps) => (ps.some((p) => p.id === w.id) ? ps : [...ps, { id: w.id, name: w.name, videoOn: false, muted: false, role: "attendee" as const, accent: w.accent }]));
+    setWaiting((ws) => ws.filter((x) => x.id !== id));
+    flash(`${w.name} admitted`);
+  };
+  const admitAll = () => {
+    setPeers((ps) => {
+      const have = new Set(ps.map((p) => p.id));
+      const add = waiting.filter((w) => !have.has(w.id)).map((w) => ({ id: w.id, name: w.name, videoOn: false, muted: false, role: "attendee" as const, accent: w.accent }));
+      return [...ps, ...add];
+    });
+    setWaiting([]);
+    flash("Everyone admitted");
+  };
+
+  // Polls
+  const createPoll = (question: string, options: string[]) => {
+    setPoll({ question, options: options.map((text) => ({ text, votes: 0 })), voted: null });
+  };
+  const votePoll = (idx: number) => {
+    setPoll((p) => (!p || p.voted !== null ? p : { ...p, voted: idx, options: p.options.map((o, i) => (i === idx ? { ...o, votes: o.votes + 1 } : o)) }));
+  };
   const confirmRemove = () => {
     if (!removeTarget) return;
     setPeers((ps) => ps.filter((p) => p.id !== removeTarget.id));
@@ -301,6 +564,18 @@ export default function RoomPage() {
     ],
     [youName, youInitials, isVideoOff, isMuted, peers, isHost],
   );
+
+  // Rotate the "active speaker" among unmuted tiles for a lifelike highlight.
+  useEffect(() => {
+    const ids = tiles.filter((t) => !t.muted).map((t) => t.id);
+    if (ids.length === 0) { setActiveSpeakerId(null); return; }
+    setActiveSpeakerId((cur) => (cur && ids.includes(cur) ? cur : ids[0]));
+    const i = setInterval(() => setActiveSpeakerId(ids[Math.floor(Math.random() * ids.length)]), 3500);
+    return () => clearInterval(i);
+  }, [tiles]);
+
+  const activeTile = tiles.find((t) => t.id === activeSpeakerId) ?? tiles[0];
+  const otherTiles = tiles.filter((t) => t.id !== activeTile?.id);
 
   const total = tiles.length;
   const gridClass = total <= 1 ? "grid-cols-1" : total <= 4 ? "grid-cols-1 sm:grid-cols-2" : total <= 6 ? "grid-cols-2 lg:grid-cols-3" : "grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
@@ -328,16 +603,44 @@ export default function RoomPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {isHost && <span className="hidden items-center gap-1.5 rounded-lg bg-amber-400/10 px-2.5 py-1 text-xs font-semibold text-amber-300 sm:inline-flex"><Crown className="h-3.5 w-3.5" /> Host</span>}
-          <span className="hidden items-center gap-1.5 rounded-lg bg-white/5 px-2.5 py-1 text-xs font-medium text-emerald-400 sm:inline-flex"><ShieldCheck className="h-3.5 w-3.5" /> Encrypted</span>
+          {recording && (
+            <span className="inline-flex items-center gap-1.5 rounded-lg bg-red-500/15 px-2.5 py-1 text-xs font-semibold text-red-400">
+              <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse-ring" /> REC
+            </span>
+          )}
+          {/* View toggle */}
+          <div className="hidden items-center gap-0.5 rounded-lg bg-white/5 p-0.5 sm:flex" role="group" aria-label="View">
+            <button onClick={() => setView("gallery")} className={cn("inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-semibold transition-colors cursor-pointer", view === "gallery" ? "bg-white/15 text-white" : "text-white/55 hover:text-white")} aria-pressed={view === "gallery"}>
+              <LayoutGrid className="h-3.5 w-3.5" /> Gallery
+            </button>
+            <button onClick={() => setView("speaker")} className={cn("inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-semibold transition-colors cursor-pointer", view === "speaker" ? "bg-white/15 text-white" : "text-white/55 hover:text-white")} aria-pressed={view === "speaker"}>
+              <Maximize2 className="h-3.5 w-3.5" /> Speaker
+            </button>
+          </div>
+          {isHost && <span className="hidden items-center gap-1.5 rounded-lg bg-amber-400/10 px-2.5 py-1 text-xs font-semibold text-amber-300 lg:inline-flex"><Crown className="h-3.5 w-3.5" /> Host</span>}
           <span className="rounded-lg bg-white/5 px-2.5 py-1 text-xs font-semibold tabular-nums text-white/80">{mmss}</span>
         </div>
       </header>
 
       {/* Stage + panel */}
       <div className="relative flex min-h-0 flex-1">
-        <main className="flex min-w-0 flex-1 flex-col p-3 sm:p-4">
-          {isSharingScreen ? (
+        <main className="relative flex min-w-0 flex-1 flex-col p-3 sm:p-4">
+          {whiteboardOn ? (
+            <div className="flex min-h-0 flex-1 flex-col gap-3">
+              <div className="relative flex flex-1 items-center justify-center overflow-hidden rounded-2xl bg-white">
+                <span className="absolute left-3 top-3 rounded-lg bg-black/5 px-2 py-1 text-xs font-semibold text-gray-500">Whiteboard</span>
+                <button onClick={() => setWhiteboardOn(false)} className="absolute right-3 top-3 rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-200 cursor-pointer">Stop</button>
+                <div className="flex flex-col items-center gap-2 text-gray-400">
+                  <Presentation className="h-10 w-10" />
+                  <p className="text-sm font-semibold text-gray-600">Collaborative whiteboard</p>
+                  <p className="text-xs text-gray-400">Drawing tools are a placeholder in this build.</p>
+                </div>
+              </div>
+              <div className="flex h-24 shrink-0 gap-3 overflow-x-auto">
+                {tiles.map((t) => <VideoTile key={t.id} {...t} compact handRaised={t.you ? handRaised : false} />)}
+              </div>
+            </div>
+          ) : isSharingScreen ? (
             <div className="flex min-h-0 flex-1 flex-col gap-3">
               <div className="flex flex-1 items-center justify-center rounded-2xl bg-[#101013] ring-1 ring-white/5">
                 <div className="flex flex-col items-center gap-3 text-center">
@@ -347,14 +650,45 @@ export default function RoomPage() {
                 </div>
               </div>
               <div className="flex h-24 shrink-0 gap-3 overflow-x-auto">
-                {tiles.map((t) => <VideoTile key={t.id} {...t} compact />)}
+                {tiles.map((t) => <VideoTile key={t.id} {...t} compact handRaised={t.you ? handRaised : false} />)}
               </div>
+            </div>
+          ) : view === "speaker" ? (
+            <div className="flex min-h-0 flex-1 flex-col gap-3">
+              <div className="min-h-0 flex-1">
+                {activeTile && <VideoTile {...activeTile} active handRaised={activeTile.you ? handRaised : false} />}
+              </div>
+              {otherTiles.length > 0 && (
+                <div className="flex h-24 shrink-0 gap-3 overflow-x-auto">
+                  {otherTiles.map((t) => <VideoTile key={t.id} {...t} compact handRaised={t.you ? handRaised : false} />)}
+                </div>
+              )}
             </div>
           ) : (
             <div className={cn("grid min-h-0 flex-1 gap-3 sm:gap-4", gridClass)}>
-              {tiles.map((t) => <div key={t.id} className="min-h-0"><VideoTile {...t} /></div>)}
+              {tiles.map((t) => (
+                <div key={t.id} className="min-h-0">
+                  <VideoTile {...t} active={t.id === activeSpeakerId} handRaised={t.you ? handRaised : false} />
+                </div>
+              ))}
             </div>
           )}
+
+          {/* Live captions (UI) */}
+          {captionsOn && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-5 flex justify-center px-4">
+              <div className="max-w-2xl rounded-xl bg-black/75 px-4 py-2 text-center text-sm font-medium text-white backdrop-blur-sm">
+                <span className="text-white/45">{youName}: </span>Thanks everyone for joining — let’s get started.
+              </div>
+            </div>
+          )}
+
+          {/* Floating reactions overlay */}
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            {reactions.map((r) => (
+              <span key={r.id} className="animate-reaction absolute bottom-6 text-4xl" style={{ left: `${r.left}%` }}>{r.emoji}</span>
+            ))}
+          </div>
         </main>
 
         {/* Side panel */}
@@ -382,9 +716,26 @@ export default function RoomPage() {
                       <button onClick={muteAll} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-white/5 px-3 py-2 text-xs font-semibold text-white/80 transition hover:bg-white/10 cursor-pointer">
                         <VolumeX className="h-4 w-4" /> Mute all
                       </button>
-                      <button onClick={() => { setLocked((l) => !l); flash(locked ? "Meeting unlocked" : "Meeting locked"); }} className={cn("inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition cursor-pointer", locked ? "bg-amber-400/15 text-amber-300 hover:bg-amber-400/25" : "bg-white/5 text-white/80 hover:bg-white/10")}>
+                      <button onClick={toggleLock} className={cn("inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition cursor-pointer", locked ? "bg-amber-400/15 text-amber-300 hover:bg-amber-400/25" : "bg-white/5 text-white/80 hover:bg-white/10")}>
                         {locked ? <LockOpen className="h-4 w-4" /> : <Lock className="h-4 w-4" />} {locked ? "Unlock" : "Lock"}
                       </button>
+                    </div>
+                  )}
+                  {isHost && waiting.length > 0 && (
+                    <div className="border-b border-white/10 p-3">
+                      <div className="mb-2 flex items-center justify-between">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-amber-300/70">Waiting room ({waiting.length})</p>
+                        <button onClick={admitAll} className="text-xs font-semibold text-[#2D8CFF] hover:underline cursor-pointer">Admit all</button>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        {waiting.map((w) => (
+                          <div key={w.id} className="flex items-center gap-3 rounded-xl px-2 py-1.5">
+                            <span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-xs font-bold text-white", w.accent)}>{getInitials(w.name)}</span>
+                            <span className="min-w-0 flex-1 truncate text-sm font-medium text-white/90">{w.name}</span>
+                            <button onClick={() => admit(w.id)} className="rounded-lg bg-[#0E72ED] px-3 py-1 text-xs font-semibold text-white transition hover:bg-[#0966d9] cursor-pointer">Admit</button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                   <div className="flex flex-col gap-1 p-3">
@@ -406,8 +757,12 @@ export default function RoomPage() {
                     ))}
                   </div>
                 </PanelShell>
+              ) : panel === "polls" ? (
+                <PollsPanel onClose={() => setPanel(null)} poll={poll} onCreate={createPoll} onVote={votePoll} />
+              ) : panel === "breakout" ? (
+                <BreakoutPanel onClose={() => setPanel(null)} names={[`${youName} (You)`, ...peers.map((p) => p.name)]} />
               ) : (
-                <ChatPanel onClose={() => setPanel(null)} />
+                <ChatPanel onClose={() => setPanel(null)} messages={messages} onSend={sendMessage} />
               )}
             </aside>
           </>
@@ -421,6 +776,82 @@ export default function RoomPage() {
         <ToolButton icon={<MonitorUp className="h-5 w-5" />} label="Share" active={isSharingScreen} onClick={() => setIsSharingScreen(!isSharingScreen)} />
         <ToolButton icon={<Users className="h-5 w-5" />} label="Participants" badge={total} active={panel === "participants"} onClick={() => setPanel((p) => (p === "participants" ? null : "participants"))} />
         <ToolButton icon={<MessageSquare className="h-5 w-5" />} label="Chat" active={panel === "chat"} onClick={() => setPanel((p) => (p === "chat" ? null : "chat"))} />
+
+        {/* Reactions + Raise hand */}
+        <div className="relative" ref={reactionsRef}>
+          <ToolButton icon={<Smile className="h-5 w-5" />} label="React" active={reactionsOpen || handRaised} onClick={() => setReactionsOpen((o) => !o)} />
+          {reactionsOpen && (
+            <div className="absolute bottom-full left-1/2 z-50 mb-3 -translate-x-1/2 rounded-2xl border border-white/10 bg-[#1c1c20] p-2 shadow-[0_-8px_32px_rgba(0,0,0,0.5)] animate-fade-in">
+              <div className="flex items-center gap-1">
+                {["👍", "👏", "❤️", "😂", "🎉", "😮"].map((e) => (
+                  <button key={e} onClick={() => sendReaction(e)} className="flex h-10 w-10 items-center justify-center rounded-xl text-xl transition hover:bg-white/10 active:scale-90 cursor-pointer" aria-label={`React ${e}`}>{e}</button>
+                ))}
+              </div>
+              <button onClick={toggleHand} className={cn("mt-1 flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition cursor-pointer", handRaised ? "bg-amber-400/20 text-amber-300" : "text-white/80 hover:bg-white/10")}>
+                <Hand className="h-4 w-4" /> {handRaised ? "Lower hand" : "Raise hand"}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* More */}
+        <div className="relative" ref={moreRef}>
+          <ToolButton icon={<MoreHorizontal className="h-5 w-5" />} label="More" active={moreOpen} onClick={() => setMoreOpen((o) => !o)} />
+          {moreOpen && (
+            <div className="absolute bottom-full left-1/2 z-50 mb-3 w-56 -translate-x-1/2 rounded-xl border border-white/10 bg-[#1c1c20] p-1.5 shadow-[0_-8px_32px_rgba(0,0,0,0.5)] animate-fade-in" role="menu">
+              <button onClick={() => { setMoreOpen(false); setPanel("polls"); }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-white/85 hover:bg-white/5 cursor-pointer">
+                <BarChart3 className="h-4 w-4" /> Polls
+              </button>
+              <button onClick={() => { setMoreOpen(false); setWhiteboardOn(true); }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-white/85 hover:bg-white/5 cursor-pointer">
+                <Presentation className="h-4 w-4" /> Whiteboard
+              </button>
+              <button onClick={() => { setMoreOpen(false); setPanel("breakout"); }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-white/85 hover:bg-white/5 cursor-pointer">
+                <Grid2x2 className="h-4 w-4" /> Breakout rooms
+              </button>
+              <div className="my-1 h-px bg-white/10" />
+              <button onClick={() => { setMoreOpen(false); setRecording((r) => { flash(r ? "Recording stopped" : "Recording started"); return !r; }); }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-white/85 hover:bg-white/5 cursor-pointer">
+                <Disc className={cn("h-4 w-4", recording && "text-red-400")} /> {recording ? "Stop recording" : "Record"}
+              </button>
+              <button onClick={() => { setMoreOpen(false); setCaptionsOn((c) => { flash(c ? "Captions hidden" : "Live captions on"); return !c; }); }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-white/85 hover:bg-white/5 cursor-pointer">
+                <Captions className="h-4 w-4" /> {captionsOn ? "Hide captions" : "Live captions"}
+              </button>
+              <button onClick={() => { setMoreOpen(false); flash("Virtual background — preview only"); }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-white/85 hover:bg-white/5 cursor-pointer">
+                <Sparkles className="h-4 w-4" /> Virtual background
+              </button>
+              <div className="my-1 h-px bg-white/10" />
+              <button onClick={() => { setMoreOpen(false); router.push("/settings"); }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-white/85 hover:bg-white/5 cursor-pointer">
+                <Settings className="h-4 w-4" /> Settings
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Host controls — only shown to the host */}
+        {isHost && (
+          <div className="relative" ref={hostMenuRef}>
+            <ToolButton icon={<Crown className="h-5 w-5" />} label="Host" active={hostMenuOpen} onClick={() => setHostMenuOpen((o) => !o)} />
+            {hostMenuOpen && (
+              <div className="absolute bottom-full left-1/2 z-50 mb-3 w-60 -translate-x-1/2 rounded-xl border border-white/10 bg-[#1c1c20] p-1.5 shadow-[0_-8px_32px_rgba(0,0,0,0.5)] animate-fade-in" role="menu">
+                <p className="px-3 pb-1 pt-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-300/70">Host controls</p>
+                <button onClick={() => { setHostMenuOpen(false); muteAll(); }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-white/85 hover:bg-white/5 cursor-pointer">
+                  <VolumeX className="h-4 w-4" /> Mute all
+                </button>
+                <button onClick={() => { setHostMenuOpen(false); toggleLock(); }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-white/85 hover:bg-white/5 cursor-pointer">
+                  {locked ? <LockOpen className="h-4 w-4" /> : <Lock className="h-4 w-4" />} {locked ? "Unlock meeting" : "Lock meeting"}
+                </button>
+                <button onClick={() => { setHostMenuOpen(false); setPanel("participants"); }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-white/85 hover:bg-white/5 cursor-pointer">
+                  <Users className="h-4 w-4" /> Manage participants
+                </button>
+                <p className="px-3 pb-1 pt-1.5 text-[11px] leading-snug text-white/35">Remove or promote individuals from the Participants panel.</p>
+                <div className="my-1 h-px bg-white/10" />
+                <button onClick={() => { setHostMenuOpen(false); endForAll(); }} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-semibold text-red-400 hover:bg-red-500/10 cursor-pointer">
+                  <PhoneOff className="h-4 w-4" /> End meeting for all
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="mx-1 h-10 w-px bg-white/10 sm:mx-3" />
         <button onClick={leave} className="inline-flex h-11 items-center gap-2 rounded-xl bg-red-600 px-4 text-sm font-semibold text-white transition hover:bg-red-700 cursor-pointer">
           <PhoneOff className="h-4.5 w-4.5" />

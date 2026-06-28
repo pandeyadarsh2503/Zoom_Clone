@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     Enum as SAEnum,
@@ -176,6 +177,29 @@ class Meeting(Base):
         nullable=False,
         default=30,
         doc="Planned length of the meeting in minutes. Used to derive the end time.",
+    )
+
+    # ── Scheduling options ───────────────────────────────────────
+    passcode: Mapped[str | None] = mapped_column(
+        String(10), nullable=True, doc="Optional numeric/text passcode required to join."
+    )
+    waiting_room: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, doc="Hold joiners in a waiting room until admitted."
+    )
+    recurrence: Mapped[str | None] = mapped_column(
+        String(16), nullable=True, doc="None=one-time, else 'daily' | 'weekly' | 'monthly'."
+    )
+    invitees: Mapped[str | None] = mapped_column(
+        Text, nullable=True, doc="Comma-separated invitee emails."
+    )
+    host_video: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, doc="Host camera on when the meeting starts."
+    )
+    participant_video: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, doc="Participant cameras on when joining."
+    )
+    join_before_host: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, doc="Allow participants to join before the host."
     )
 
     # ── Audit timestamps ─────────────────────────────────────────

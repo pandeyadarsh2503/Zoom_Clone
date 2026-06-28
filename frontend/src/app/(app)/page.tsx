@@ -35,6 +35,7 @@ import { cn, formatTime, formatRelativeDay, formatDuration, isToday } from "@/li
 import { meetingsApi } from "@/lib/api/meetings";
 import { Modal } from "@/components/ui/Modal";
 import { Spinner } from "@/components/ui/Spinner";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { JoinMeetingModal } from "@/components/JoinMeetingModal";
 import type { Meeting, MeetingStatus } from "@/types/meeting";
 
@@ -130,6 +131,38 @@ function ActionCard({
       </span>
       <ChevronRight className="h-4 w-4 shrink-0 text-gray-300 group-hover:text-gray-500 group-hover:translate-x-0.5 transition-all" />
     </button>
+  );
+}
+
+// ── Loading skeleton (mirrors the meeting sections) ─────────────────────────
+function MeetingsSkeleton() {
+  return (
+    <div className="col-span-12 flex flex-col gap-8" aria-busy="true" aria-label="Loading meetings">
+      {[0, 1].map((s) => (
+        <div key={s} className="flex flex-col gap-4">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-5 w-44" />
+            <Skeleton className="h-5 w-6 rounded-full" />
+          </div>
+          <div className="surface-card divide-y divide-gray-100 overflow-hidden">
+            {[0, 1].map((r) => (
+              <div key={r} className="flex items-center gap-6 p-6">
+                <div className="w-24 shrink-0 space-y-2">
+                  <Skeleton className="h-4 w-16" />
+                  <Skeleton className="h-3 w-12" />
+                </div>
+                <div className="min-w-0 flex-1 space-y-2.5">
+                  <Skeleton className="h-4 w-48" />
+                  <Skeleton className="h-3 w-full max-w-md" />
+                  <Skeleton className="h-3 w-40" />
+                </div>
+                <Skeleton className="h-9 w-20 shrink-0 rounded-lg" />
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -306,6 +339,16 @@ export default function DashboardPage() {
     else setGreeting("Good evening");
   }, [loadMeetings]);
 
+  // Close the delete dialog on Escape.
+  useEffect(() => {
+    if (!meetingToDelete) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !isDeleting) setMeetingToDelete(null);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [meetingToDelete, isDeleting]);
+
   const copyInviteLink = (meeting: Meeting) => {
     const link = `${window.location.origin}/room/${meeting.meeting_code}`;
     navigator.clipboard?.writeText(link).catch(() => {});
@@ -467,17 +510,12 @@ export default function DashboardPage() {
             subtitle="View all your meetings"
             icon={<CalendarRange className="h-6 w-6" />}
             gradient="bg-gradient-to-br from-[#A06BFF] to-[#7B46F2]"
-            onClick={() => triggerAction("My Meetings", "Browse and manage every meeting you host or attend. Fully active in Phase 2.")}
+            onClick={() => router.push("/meetings")}
           />
         </div>
 
         {/* ── Loading / error states ─────────────────────────── */}
-        {isLoading && (
-          <div className="surface-card col-span-12 flex flex-col items-center justify-center gap-3 p-16">
-            <Spinner size="md" className="text-[#0E72ED]" />
-            <p className="text-sm text-gray-400">Loading your meetings…</p>
-          </div>
-        )}
+        {isLoading && <MeetingsSkeleton />}
 
         {error && (
           <div className="col-span-12 flex items-start gap-4 rounded-2xl border border-red-200 bg-red-50 p-6">
@@ -495,7 +533,7 @@ export default function DashboardPage() {
             <SectionHeader
               title="Upcoming Meetings"
               count={upcomingList.length}
-              onViewAll={() => triggerAction("Upcoming Meetings", "A filtered view of your scheduled and live meetings.")}
+              onViewAll={() => router.push("/meetings?filter=upcoming")}
             />
 
             {upcomingList.length === 0 ? (
@@ -531,12 +569,7 @@ export default function DashboardPage() {
                           </span>
                         </>
                       }
-                      onAction={() =>
-                        triggerAction(
-                          meeting.status === "live" ? "Join Meeting" : "Start Meeting",
-                          `${meeting.status === "live" ? "Joining" : "Starting"} "${meeting.title}" (${meeting.meeting_code}). Live media activates in Phase 3.`,
-                        )
-                      }
+                      onAction={() => router.push(`/room/${meeting.meeting_code}`)}
                       menuItems={[
                         {
                           label: "Edit",
@@ -569,7 +602,7 @@ export default function DashboardPage() {
             <SectionHeader
               title="Recent Meetings"
               count={recentList.length}
-              onViewAll={() => triggerAction("Recent History", "A filtered view of your completed and cancelled meetings.")}
+              onViewAll={() => router.push("/meetings?filter=past")}
             />
 
             {recentList.length === 0 ? (
@@ -591,10 +624,7 @@ export default function DashboardPage() {
                       primaryTime={formatRelativeDay(ts)}
                       secondaryTime={formatTime(ts)}
                       emphasized={isLive}
-                      action={{
-                        label: isLive ? "Join" : meeting.status === "ended" ? "View Recording" : "Details",
-                        primary: isLive,
-                      }}
+                      action={{ label: isLive ? "Join" : "Details", primary: isLive }}
                       meta={
                         <>
                           <span className="flex items-center gap-2">
@@ -610,12 +640,21 @@ export default function DashboardPage() {
                       onAction={() =>
                         isLive
                           ? router.push(`/room/${meeting.meeting_code}`)
-                          : triggerAction(
-                              meeting.status === "ended" ? "View Recording" : "Meeting Details",
-                              `Opening "${meeting.title}" (${meeting.meeting_code}).`,
-                            )
+                          : router.push("/meetings?filter=past")
                       }
-                      onOptions={() => triggerAction("Meeting Options", `Manage settings for "${meeting.title}".`)}
+                      menuItems={[
+                        {
+                          label: copiedId === meeting.id ? "Copied!" : "Copy link",
+                          icon: <LinkIcon className="h-4 w-4" />,
+                          onClick: () => copyInviteLink(meeting),
+                        },
+                        {
+                          label: "Delete",
+                          icon: <Trash2 className="h-4 w-4" />,
+                          danger: true,
+                          onClick: () => setMeetingToDelete(meeting),
+                        },
+                      ]}
                     />
                   );
                 })}
@@ -650,6 +689,7 @@ export default function DashboardPage() {
             </div>
             <div className="mt-6 flex items-center justify-end gap-3">
               <button
+                autoFocus
                 onClick={() => setMeetingToDelete(null)}
                 disabled={isDeleting}
                 className="inline-flex h-10 items-center rounded-lg px-4 text-sm font-semibold text-gray-600 transition hover:bg-gray-100 cursor-pointer disabled:opacity-50"

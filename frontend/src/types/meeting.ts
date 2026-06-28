@@ -1,5 +1,7 @@
 export type MeetingStatus = "scheduled" | "live" | "ended" | "cancelled";
 
+export type Recurrence = "daily" | "weekly" | "monthly";
+
 export interface Meeting {
   id: string;
   host_id: string;
@@ -12,6 +14,13 @@ export interface Meeting {
   ended_at: string | null;
   max_participants: number;
   duration_minutes: number;
+  passcode: string | null;
+  waiting_room: boolean;
+  recurrence: Recurrence | null;
+  invitees: string | null; // comma-separated emails
+  host_video: boolean;
+  participant_video: boolean;
+  join_before_host: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -21,6 +30,13 @@ export interface ScheduledMeetingCreate {
   description?: string;
   scheduled_at: string; // ISO-8601 (local)
   duration_minutes: number;
+  passcode?: string;
+  waiting_room?: boolean;
+  recurrence?: Recurrence | null;
+  invitees?: string[];
+  host_video?: boolean;
+  participant_video?: boolean;
+  join_before_host?: boolean;
 }
 
 export interface MeetingUpdate {
@@ -28,4 +44,11 @@ export interface MeetingUpdate {
   description?: string;
   scheduled_at?: string;
   duration_minutes?: number;
+  passcode?: string;
+  waiting_room?: boolean;
+  recurrence?: Recurrence | null;
+  invitees?: string[];
+  host_video?: boolean;
+  participant_video?: boolean;
+  join_before_host?: boolean;
 }

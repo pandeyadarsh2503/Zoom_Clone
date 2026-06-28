@@ -119,6 +119,13 @@ def create_scheduled_meeting(
         description=payload.description,
         scheduled_at=payload.scheduled_at,
         duration_minutes=payload.duration_minutes,
+        passcode=payload.passcode,
+        waiting_room=payload.waiting_room,
+        recurrence=payload.recurrence,
+        invitees=payload.invitees,
+        host_video=payload.host_video,
+        participant_video=payload.participant_video,
+        join_before_host=payload.join_before_host,
     )
     return _to_detail(service, meeting)
 
@@ -150,6 +157,13 @@ def update_meeting(
         description=payload.description,
         scheduled_at=payload.scheduled_at,
         duration_minutes=payload.duration_minutes,
+        passcode=payload.passcode,
+        waiting_room=payload.waiting_room,
+        recurrence=payload.recurrence,
+        invitees=payload.invitees,
+        host_video=payload.host_video,
+        participant_video=payload.participant_video,
+        join_before_host=payload.join_before_host,
     )
     return _to_detail(service, meeting)
 

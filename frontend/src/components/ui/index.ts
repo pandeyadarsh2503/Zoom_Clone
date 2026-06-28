@@ -15,5 +15,7 @@ export type { BadgeProps } from "./Badge";
 
 export { Spinner } from "./Spinner";
 
+export { Skeleton } from "./Skeleton";
+
 export { Tooltip } from "./Tooltip";
 export type { TooltipProps } from "./Tooltip";

@@ -16,6 +16,14 @@ class MeetingBase(BaseModel):
     scheduled_at: Optional[datetime] = None
     max_participants: int = Field(default=100, ge=1, le=1000)
     duration_minutes: int = Field(default=30, ge=5, le=1440)
+    # Scheduling options (returned on the meeting representation).
+    passcode: Optional[str] = Field(default=None, max_length=10)
+    waiting_room: bool = False
+    recurrence: Optional[str] = None
+    invitees: Optional[str] = None  # raw comma-separated on output
+    host_video: bool = True
+    participant_video: bool = True
+    join_before_host: bool = True
 
 
 class ScheduledMeetingCreate(BaseModel):
@@ -30,6 +38,13 @@ class ScheduledMeetingCreate(BaseModel):
     description: Optional[str] = Field(default=None, max_length=4000)
     scheduled_at: datetime
     duration_minutes: int = Field(default=30, ge=5, le=1440)
+    passcode: Optional[str] = Field(default=None, max_length=10)
+    waiting_room: bool = False
+    recurrence: Optional[str] = Field(default=None, pattern="^(daily|weekly|monthly)$")
+    invitees: Optional[list[str]] = None
+    host_video: bool = True
+    participant_video: bool = True
+    join_before_host: bool = True
 
 
 class MeetingCreate(MeetingBase):
@@ -59,6 +74,13 @@ class MeetingUpdate(BaseModel):
     scheduled_at: Optional[datetime] = None
     max_participants: Optional[int] = Field(default=None, ge=1, le=1000)
     duration_minutes: Optional[int] = Field(default=None, ge=5, le=1440)
+    passcode: Optional[str] = Field(default=None, max_length=10)
+    waiting_room: Optional[bool] = None
+    recurrence: Optional[str] = Field(default=None, pattern="^(daily|weekly|monthly)?$")
+    invitees: Optional[list[str]] = None
+    host_video: Optional[bool] = None
+    participant_video: Optional[bool] = None
+    join_before_host: Optional[bool] = None
 
 
 class MeetingOut(MeetingBase):

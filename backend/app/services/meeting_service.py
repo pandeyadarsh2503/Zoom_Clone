@@ -27,6 +27,14 @@ _CODE_ALPHABET = string.ascii_lowercase + string.digits
 _CODE_GENERATION_ATTEMPTS = 10
 
 
+def _join_invitees(emails: list[str] | None) -> str | None:
+    """Normalise an invitee email list into a stored comma-separated string."""
+    if not emails:
+        return None
+    cleaned = [e.strip() for e in emails if e and e.strip()]
+    return ",".join(cleaned) or None
+
+
 class MeetingService:
     """
     Business logic for the meeting lifecycle.
@@ -92,6 +100,13 @@ class MeetingService:
         description: str | None,
         scheduled_at: datetime,
         duration_minutes: int,
+        passcode: str | None = None,
+        waiting_room: bool = False,
+        recurrence: str | None = None,
+        invitees: list[str] | None = None,
+        host_video: bool = True,
+        participant_video: bool = True,
+        join_before_host: bool = True,
     ) -> Meeting:
         """
         Create a SCHEDULED meeting for a future time.
@@ -111,6 +126,13 @@ class MeetingService:
             ended_at=None,
             max_participants=100,
             duration_minutes=duration_minutes,
+            passcode=(passcode or "").strip() or None,
+            waiting_room=waiting_room,
+            recurrence=recurrence,
+            invitees=_join_invitees(invitees),
+            host_video=host_video,
+            participant_video=participant_video,
+            join_before_host=join_before_host,
         )
         self.db.add(meeting)
         self.db.flush()
@@ -144,6 +166,13 @@ class MeetingService:
         description: str | None = None,
         scheduled_at: datetime | None = None,
         duration_minutes: int | None = None,
+        passcode: str | None = None,
+        waiting_room: bool | None = None,
+        recurrence: str | None = None,
+        invitees: list[str] | None = None,
+        host_video: bool | None = None,
+        participant_video: bool | None = None,
+        join_before_host: bool | None = None,
     ) -> Meeting:
         """
         Update an editable (scheduled) meeting. Only fields provided are changed.
@@ -163,6 +192,20 @@ class MeetingService:
             meeting.scheduled_at = scheduled_at
         if duration_minutes is not None:
             meeting.duration_minutes = duration_minutes
+        if passcode is not None:
+            meeting.passcode = passcode.strip() or None
+        if waiting_room is not None:
+            meeting.waiting_room = waiting_room
+        if recurrence is not None:
+            meeting.recurrence = recurrence or None
+        if invitees is not None:
+            meeting.invitees = _join_invitees(invitees)
+        if host_video is not None:
+            meeting.host_video = host_video
+        if participant_video is not None:
+            meeting.participant_video = participant_video
+        if join_before_host is not None:
+            meeting.join_before_host = join_before_host
 
         self.db.commit()
         self.db.refresh(meeting)
