@@ -7,19 +7,17 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex h-screen overflow-hidden bg-[#f7f8fa]">
-      {/* Fixed sidebar */}
+    <div className="flex h-screen overflow-hidden bg-[#F7F8FA]">
+      {/* Fixed sidebar (240px) */}
       <Sidebar />
 
-      {/* Scrollable main area */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      {/* Main column: fixed 72px navbar + scrollable content. */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Navbar />
-        <main className="flex-1 overflow-y-auto p-6 pb-20 md:pb-6">
-          {children}
-        </main>
+        <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
 
-      {/* Mobile Bottom Navigation */}
+      {/* Mobile bottom navigation */}
       <BottomNav />
     </div>
   );

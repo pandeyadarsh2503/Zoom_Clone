@@ -35,12 +35,17 @@
 }
 
 /* ── Base Reset ───────────────────────────────────────────────────────────── */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+/* Must live in @layer base so Tailwind utilities (@layer utilities) can still
+   override margin and padding. Unlayered, a universal padding:0 reset beats
+   every padding utility in Tailwind v4 and silently collapses all spacing. */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
 }
 
 html {

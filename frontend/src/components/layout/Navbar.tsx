@@ -71,7 +71,7 @@ export function Navbar() {
   const initials = user ? getInitials(user.display_name) : "DU";
 
   return (
-    <header className="flex h-16 items-center justify-between bg-white/95 backdrop-blur px-6 border-b border-gray-100 z-30">
+    <header className="flex h-[72px] shrink-0 items-center justify-between border-b border-gray-100 bg-white/95 px-6 backdrop-blur z-30">
       {/* Search box */}
       <div className="relative w-[300px] lg:w-[380px] hidden sm:block group">
         <span className="absolute inset-y-0 left-3.5 flex items-center text-gray-400 group-focus-within:text-[#0E72ED] transition-colors">

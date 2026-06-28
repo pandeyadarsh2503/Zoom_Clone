@@ -79,9 +79,17 @@ def create_app() -> FastAPI:
     )
 
     # ── Middleware ────────────────────────────────────────────
+    # In addition to the explicit allow-list, accept any local-development
+    # origin (localhost / 127.0.0.1 / private LAN IPs on any port). This stops
+    # the frontend from silently failing CORS when the dev server runs on a
+    # different port (e.g. 3001) or is opened via 127.0.0.1 or a LAN address.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.ALLOWED_ORIGINS,
+        allow_origin_regex=(
+            r"https?://(localhost|127\.0\.0\.1|0\.0\.0\.0"
+            r"|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3})(:\d+)?"
+        ),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
