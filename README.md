@@ -59,21 +59,21 @@ Zoom Clone is a production-deployed clone of the Zoom web experience built to de
 
 ```mermaid
 flowchart LR
-    subgraph Client["Browser"]
-        UI["Next.js 16 App Router<br/>React + Zustand"]
-    end
+    UI["Browser: Next.js + React + Zustand"]
+
     subgraph Vercel
-        FE["Static + SSR<br/>frontend"]
+        FE["Frontend host"]
     end
+
     subgraph Render
-        API["FastAPI<br/>REST + WebSocket"]
+        API["FastAPI: REST + WebSocket"]
         DB[("PostgreSQL")]
     end
 
-    UI -->|HTTPS REST<br/>Bearer JWT| API
-    UI <-->|WSS<br/>?token=JWT| API
     FE --- UI
-    API -->|SQLAlchemy| DB
+    UI -->|"HTTPS REST, Bearer JWT"| API
+    UI <-->|"WSS, JWT in query"| API
+    API -->|"SQLAlchemy"| DB
 ```
 
 **Request flow**
@@ -143,7 +143,7 @@ erDiagram
         string email UK
         string password_hash
         string display_name
-        text   avatar_url
+        text avatar_url
         string plan
         datetime created_at
     }
@@ -152,7 +152,7 @@ erDiagram
         string host_id FK
         string meeting_code UK
         string title
-        string status "scheduled|live|ended|cancelled"
+        string status
         datetime scheduled_at
         int duration_minutes
         string passcode
@@ -163,7 +163,7 @@ erDiagram
         string id PK
         string meeting_id FK
         string user_id FK
-        enum role "host|cohost|attendee"
+        string role
         datetime joined_at
         bool is_muted
         bool is_video_off
@@ -174,13 +174,13 @@ erDiagram
         string owner_id FK
         string name
         string email
-        string status "online|busy|offline"
+        string status
     }
 ```
 
 **Notes**
 - UUID string primary keys (safe to expose in URLs).
-- `meetings.status` is a string enum; scheduling options (passcode, waiting room, recurrence, invitees, media defaults) live on the meeting row.
+- Enum-like string fields: `meetings.status` ∈ {`scheduled`, `live`, `ended`, `cancelled`}, `participants.role` ∈ {`host`, `cohost`, `attendee`}, `contacts.status` ∈ {`online`, `busy`, `offline`}. Scheduling options (passcode, waiting room, recurrence, invitees, media defaults) live on the meeting row.
 - Datetimes are stored as UTC and serialized as UTC-with-offset ISO strings so the client can render them in the user's local timezone.
 - Tables are created on startup (`Base.metadata.create_all`) and seeded idempotently (demo user, sample meetings, contacts). Alembic is included for forward migrations.
 
