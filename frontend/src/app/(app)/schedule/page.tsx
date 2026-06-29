@@ -106,8 +106,11 @@ function ScheduleForm() {
         setTitle(m.title);
         setDescription(m.description ?? "");
         if (m.scheduled_at) {
-          setDate(m.scheduled_at.slice(0, 10));
-          setTime(m.scheduled_at.slice(11, 16));
+          // Stored as UTC — show it back in the user's local date/time.
+          const d = new Date(m.scheduled_at);
+          const pad = (n: number) => String(n).padStart(2, "0");
+          setDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
+          setTime(`${pad(d.getHours())}:${pad(d.getMinutes())}`);
         }
         setDuration(m.duration_minutes ?? 30);
         setRecurrence((m.recurrence as "" | "daily" | "weekly" | "monthly") ?? "");
@@ -148,8 +151,11 @@ function ScheduleForm() {
 
     let scheduledAt: string | undefined;
     if (date && time) {
-      scheduledAt = `${date}T${time}:00`;
-      if (new Date(scheduledAt).getTime() <= Date.now()) {
+      // The picker gives local date+time. Convert to a UTC instant (ISO with Z)
+      // so it round-trips correctly regardless of the server's timezone.
+      const local = new Date(`${date}T${time}:00`);
+      scheduledAt = local.toISOString();
+      if (local.getTime() <= Date.now()) {
         next.time = "Choose a time in the future.";
       }
     }

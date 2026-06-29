@@ -1,11 +1,26 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 from app.models.enums import MeetingStatus
+
+
+def _as_utc_iso(dt: Optional[datetime]) -> Optional[str]:
+    """
+    Serialize a datetime as a UTC ISO string with an explicit offset.
+
+    Naive values (e.g. from SQLite) are assumed to be UTC; aware values
+    (e.g. Postgres timestamptz) are converted to UTC. This guarantees the
+    frontend always receives an unambiguous instant to render in local time.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).isoformat()
 
 
 class MeetingBase(BaseModel):
@@ -101,6 +116,11 @@ class MeetingOut(MeetingBase):
     ended_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+
+    # Emit every datetime as a UTC ISO string with offset (see _as_utc_iso).
+    @field_serializer("scheduled_at", "started_at", "ended_at", "created_at", "updated_at", when_used="json")
+    def _serialize_dts(self, dt: Optional[datetime]) -> Optional[str]:
+        return _as_utc_iso(dt)
 
 
 class MeetingListOut(BaseModel):
