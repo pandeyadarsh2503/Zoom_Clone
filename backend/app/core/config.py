@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import json
 from functools import lru_cache
-from typing import Optional
+from typing import Annotated, Optional
 
 from pydantic import field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -50,8 +50,9 @@ class Settings(BaseSettings):
     DEMO_PASSWORD: str = "demo1234"
 
     # ── CORS ─────────────────────────────────────────────────
-    # Accepts a JSON array string from the environment variable.
-    ALLOWED_ORIGINS: list[str] = [
+    # NoDecode stops pydantic-settings from JSON-decoding the env var before our
+    # validator runs, so a JSON array, a comma list, OR a single bare URL all work.
+    ALLOWED_ORIGINS: Annotated[list[str], NoDecode] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
     ]
