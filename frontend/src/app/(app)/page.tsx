@@ -194,6 +194,7 @@ function MeetingRow({
   onAction,
   onOptions,
   menuItems,
+  isLast,
 }: {
   meeting: Meeting;
   primaryTime: string;
@@ -204,6 +205,7 @@ function MeetingRow({
   onAction: () => void;
   onOptions?: () => void;
   menuItems?: RowMenuItem[];
+  isLast?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -266,7 +268,13 @@ function MeetingRow({
             <MoreHorizontal className="h-4 w-4" />
           </button>
           {menuItems && menuOpen && (
-            <div className="absolute right-0 top-full z-20 mt-1.5 w-44 rounded-xl border border-[#ececec] bg-white p-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.12)] animate-scale-in" role="menu">
+            <div
+              className={cn(
+                "absolute right-0 z-30 w-44 rounded-xl border border-[#ececec] bg-white p-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.12)] animate-scale-in",
+                isLast ? "bottom-full mb-1.5" : "top-full mt-1.5",
+              )}
+              role="menu"
+            >
               {menuItems.map((item) => (
                 <button
                   key={item.label}
@@ -552,6 +560,7 @@ export default function DashboardPage() {
                     <MeetingRow
                       key={meeting.id}
                       meeting={meeting}
+                      isLast={index === upcomingList.length - 1}
                       primaryTime={formatTime(start)}
                       secondaryTime={formatRelativeDay(start)}
                       emphasized={index === 0}
@@ -609,7 +618,7 @@ export default function DashboardPage() {
               <div className="surface-card p-12 text-center text-sm text-gray-400">No recent meetings yet.</div>
             ) : (
               <div className="surface-card divide-y divide-gray-100 overflow-hidden">
-                {recentList.map((meeting) => {
+                {recentList.map((meeting, index) => {
                   const ts =
                     meeting.ended_at ?? meeting.started_at ?? meeting.scheduled_at ?? meeting.created_at;
                   const duration =
@@ -621,6 +630,7 @@ export default function DashboardPage() {
                     <MeetingRow
                       key={meeting.id}
                       meeting={meeting}
+                      isLast={index === recentList.length - 1}
                       primaryTime={formatRelativeDay(ts)}
                       secondaryTime={formatTime(ts)}
                       emphasized={isLive}

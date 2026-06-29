@@ -226,7 +226,7 @@ function ScheduleForm() {
   // ── Success state (after creating) ──────────────────────────────
   if (createdLink) {
     return (
-      <div className="mx-auto w-full max-w-[640px] px-6 py-8 lg:px-8">
+      <div className="mx-auto w-full max-w-160 px-6 py-8 lg:px-8">
         <div className="surface-card p-8 text-center">
           <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#E8F5EC] text-[#16A34A]">
             <CalendarCheck className="h-7 w-7" />
@@ -276,7 +276,7 @@ function ScheduleForm() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[640px] px-6 py-8 lg:px-8">
+    <div className="mx-auto w-full max-w-160 px-6 py-8 lg:px-8">
       {/* Header */}
       <div className="mb-6 flex items-center gap-3">
         <button
@@ -544,7 +544,7 @@ function ScheduleForm() {
               <button
                 type="submit"
                 disabled={isSaving}
-                className="inline-flex h-10 min-w-[140px] items-center justify-center gap-2 rounded-lg bg-[#0E72ED] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0966d9] hover:shadow-md disabled:cursor-wait disabled:opacity-90 cursor-pointer"
+                className="inline-flex h-10 min-w-35 items-center justify-center gap-2 rounded-lg bg-[#0E72ED] px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0966d9] hover:shadow-md disabled:cursor-wait disabled:opacity-90 cursor-pointer"
               >
                 {isSaving ? (
                   <>
